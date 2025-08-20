@@ -53,15 +53,18 @@ export const Sidebar: React.FC = () => {
       <div className="h-10 px-3 flex items-center justify-between" style={{ borderBottom: '1px solid rgb(var(--color-sidebar-border))' }}>
         <h2 className="font-medium text-xs uppercase tracking-wide" style={{ color: 'rgb(var(--color-sidebar-foreground))' }}>Projects</h2>
         <button
-          className="p-1 rounded hover:bg-opacity-10 transition-all"
+          className="p-1 rounded-md transition-all"
           style={{ 
             color: 'rgb(var(--color-sidebar-foreground))',
+            backgroundColor: 'transparent',
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = 'rgba(var(--color-sidebar-accent), 0.5)';
+            e.currentTarget.style.backgroundColor = 'rgb(var(--color-sidebar-accent))';
+            e.currentTarget.style.transform = 'scale(1.1)';
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.backgroundColor = 'transparent';
+            e.currentTarget.style.transform = 'scale(1)';
           }}
           onClick={() => {/* TODO: Open add project dialog */}}
         >
@@ -75,22 +78,27 @@ export const Sidebar: React.FC = () => {
           <div className="p-4 text-center">
             <p className="text-sm mb-3" style={{ color: 'rgb(var(--color-muted-foreground))' }}>No projects yet.</p>
             <button
-              className="w-full px-3 py-1.5 text-sm rounded transition-all flex items-center justify-center"
+              className="w-full px-3 py-1.5 text-sm rounded-md transition-all flex items-center justify-center group"
               style={{ 
                 backgroundColor: 'rgb(var(--color-secondary))',
                 color: 'rgb(var(--color-secondary-foreground))',
+                border: '1px solid transparent',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgb(var(--color-secondary) / 0.8)';
-                e.currentTarget.style.transform = 'translateY(-1px)';
+                e.currentTarget.style.backgroundColor = 'rgb(var(--color-primary))';
+                e.currentTarget.style.color = 'rgb(var(--color-primary-foreground))';
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.backgroundColor = 'rgb(var(--color-secondary))';
+                e.currentTarget.style.color = 'rgb(var(--color-secondary-foreground))';
                 e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = 'none';
               }}
               onClick={() => {/* TODO: Open add project dialog */}}
             >
-              <Plus className="w-4 h-4 mr-2" />
+              <Plus className="w-4 h-4 mr-2 transition-transform group-hover:rotate-90" />
               Add Project
             </button>
           </div>
@@ -204,7 +212,7 @@ export const Sidebar: React.FC = () => {
                         );
                       })}
                       <button
-                        className="w-full flex items-center px-3 py-1 text-sm transition-all"
+                        className="w-full flex items-center px-3 py-1 text-sm transition-all group"
                         style={{ 
                           color: 'rgb(var(--color-muted-foreground))'
                         }}
@@ -218,7 +226,7 @@ export const Sidebar: React.FC = () => {
                         }}
                         onClick={() => {/* TODO: Create new worktree */}}
                       >
-                        <Plus className="w-3 h-3 mr-2" />
+                        <Plus className="w-3 h-3 mr-2 transition-transform group-hover:rotate-90" />
                         New Worktree
                       </button>
                     </div>
