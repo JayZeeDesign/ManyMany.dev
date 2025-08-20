@@ -32,25 +32,30 @@ Build a Tauri-based desktop app for managing Git worktrees with integrated termi
 - ✅ Project folder structure created
 - ✅ Basic IPC commands for project, worktree, git, and terminal operations
 
-### Week 2: Project Management Core 🚧 IN PROGRESS
+### Week 2: Project Management Core ✅ COMPLETED
 **Goal:** Complete project CRUD operations
 
-1. **Backend (Rust)** ✅ Partially Complete
+1. **Backend (Rust)** ✅ Complete
    - ✅ Project data model and storage structures
-   - ⏳ File system operations for config persistence
-   - ✅ Git repository detection
+   - ✅ Git repository detection (`is_git_repository` command)
+   - ✅ Default branch detection (`get_default_branch` command)
    - ✅ Project validation logic
+   - ✅ Add project command with proper request/response structure
+   - ✅ Tauri dialog plugin integration with permissions
 
-2. **Frontend Components** 🔄 Next Up
-   - ✅ Project sidebar component (UI ready, needs functionality)
-   - 🔄 Add project dialog (folder picker)
-   - 🔄 Project settings modal
-   - ✅ Project list with selection state (UI ready)
+2. **Frontend Components** ✅ Complete
+   - ✅ Project sidebar component with Add Project button
+   - ✅ AddProject component (replaces dialog approach)
+   - ✅ Repository folder picker with native file dialogs
+   - ✅ Workspace file picker (.code-workspace, .json)
+   - ✅ Auto-detection of project name and Git branch
+   - ✅ Project form with validation and styling
+   - ✅ Project store integration (Zustand)
 
-3. **Data Persistence** 🔄 Next Up
+3. **Data Persistence** 🔄 Next Priority
    - 🔄 JSON config in app data directory
    - 🔄 Project metadata storage
-   - 🔄 Default branch persistence
+   - 🔄 Load projects on app startup
 
 ### Week 3: Worktree Management
 **Goal:** Full worktree lifecycle management
@@ -178,29 +183,38 @@ worktree-studio/
 
 ## 📋 Current Status & Next Steps
 
-### ✅ Completed (Week 1)
+### ✅ Completed (Weeks 1-2)
 1. ✅ Set up Tauri project with React/Vite
 2. ✅ Create sidebar layout with project list
 3. ✅ VS Code-like dark theme
 4. ✅ State management with Zustand
 5. ✅ All Rust backend commands structure
 6. ✅ TypeScript types and interfaces
+7. ✅ **Add Project Feature Complete**
+   - ✅ Folder picker using Tauri's dialog API with proper permissions
+   - ✅ Workspace file picker for .code-workspace/.json files
+   - ✅ Auto-detection of Git repositories and default branches
+   - ✅ Connected to backend `add_project` command
+   - ✅ Updates Zustand store with new projects
+   - ✅ Clean UI integrated into main content area
 
-### 🔄 Immediate Next Steps (Week 2)
-1. **Add Project Dialog**
-   - Implement folder picker using Tauri's dialog API
-   - Connect to backend `add_project` command
-   - Update Zustand store
-
-2. **Data Persistence**
-   - Implement config file storage in Rust
-   - Load projects on app startup
+### 🔄 Immediate Next Steps (Week 3)
+1. **Data Persistence** 🚨 High Priority
+   - Implement config file storage in Rust backend
+   - Load projects on app startup from persistent storage
    - Save projects when added/removed
+   - Handle app data directory creation
 
-3. **Worktree Creation UI**
+2. **Worktree Creation UI**
    - Create worktree dialog component
    - Branch input/selector
    - Connect to backend `create_worktree` command
+   - Integrate with selected project context
+
+3. **Project Management Polish**
+   - Remove project functionality
+   - Edit project settings
+   - Project validation and error handling
 
 4. **Terminal Integration**
    - Create Terminal component with xterm.js
@@ -216,13 +230,15 @@ npm run tauri dev
 
 # The app will launch with:
 # - Dark VS Code-like theme
-# - Empty projects sidebar
-# - Placeholder terminal area
-# - Git panel structure
+# - Working Add Project functionality
+# - Repository folder and workspace file pickers
+# - Auto-detection of Git repos and branches
+# - Project form with validation
 ```
 
 ## 🎯 Success Metrics
-- 🔄 Can add/remove projects
+- ✅ Can add projects (folder picker + workspace files)
+- 🔄 Can remove projects (needs persistence first)
 - 🔄 Can create/delete worktrees
 - 🔄 Terminals work reliably
 - 🔄 Can commit changes
@@ -232,5 +248,8 @@ npm run tauri dev
 ## 📝 Notes
 - Decided to use web-based UI for easier future web deployment
 - Implemented VS Code-like dark theme as default
-- All backend Rust commands are ready, focus now on frontend integration
-- Terminal integration is the next major milestone
+- **Add Project feature is fully functional** with native file dialogs
+- Fixed Tauri v2 dialog plugin permissions (`dialog:allow-open`, `dialog:default`)
+- Project data flows: UI → Tauri commands → Zustand store
+- **Next major milestone: Project persistence** (save/load from disk)
+- Terminal integration and worktree management follow after persistence

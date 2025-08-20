@@ -1,19 +1,17 @@
 import React from 'react';
 import { Plus, FolderGit2, ChevronRight, ChevronDown, GitBranch, Settings } from 'lucide-react';
-import { useAppStore } from '../stores/useAppStore';
+import { useProjectStore } from '@/stores/projectStore';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 
 export const Sidebar: React.FC = () => {
   const {
     projects,
-    worktrees,
     selectedProjectId,
-    selectedWorktreeId,
     selectProject,
-    selectWorktree,
-    sidebarCollapsed,
-  } = useAppStore();
+  } = useProjectStore();
+  
+  const sidebarCollapsed = false; // TODO: Add to a UI store later
 
   const [expandedProjects, setExpandedProjects] = React.useState<Set<string>>(new Set());
 
@@ -28,7 +26,8 @@ export const Sidebar: React.FC = () => {
   };
 
   const getProjectWorktrees = (projectId: string) => {
-    return worktrees.filter(w => w.projectId === projectId);
+    const project = projects.find(p => p.id === projectId);
+    return project?.worktrees || [];
   };
 
   if (sidebarCollapsed) {
@@ -66,7 +65,7 @@ export const Sidebar: React.FC = () => {
             e.currentTarget.style.backgroundColor = 'transparent';
             e.currentTarget.style.transform = 'scale(1)';
           }}
-          onClick={() => {/* TODO: Open add project dialog */}}
+          onClick={() => selectProject(null)}
         >
           <Plus className="w-4 h-4" />
         </button>
@@ -96,7 +95,7 @@ export const Sidebar: React.FC = () => {
                 e.currentTarget.style.transform = 'translateY(0)';
                 e.currentTarget.style.boxShadow = 'none';
               }}
-              onClick={() => {/* TODO: Open add project dialog */}}
+              onClick={() => selectProject(null)}
             >
               <Plus className="w-4 h-4 mr-2 transition-transform group-hover:rotate-90" />
               Add Project
@@ -180,34 +179,26 @@ export const Sidebar: React.FC = () => {
                   {isExpanded && (
                     <div className="ml-6">
                       {projectWorktrees.map((worktree) => {
-                        const isWorktreeSelected = selectedWorktreeId === worktree.id;
                         return (
                           <div
                             key={worktree.id}
                             className="flex items-center px-3 py-1 cursor-pointer transition-all text-sm"
                             style={{
-                              backgroundColor: isWorktreeSelected ? 'rgb(var(--color-sidebar-primary))' : 'transparent',
-                              color: isWorktreeSelected ? 'rgb(var(--color-sidebar-primary-foreground))' : 'rgb(var(--color-sidebar-foreground))'
+                              backgroundColor: 'transparent',
+                              color: 'rgb(var(--color-sidebar-foreground))'
                             }}
                             onMouseEnter={(e) => {
-                              if (!isWorktreeSelected) {
-                                e.currentTarget.style.backgroundColor = 'rgb(var(--color-sidebar-accent))';
-                                e.currentTarget.style.color = 'rgb(var(--color-sidebar-accent-foreground))';
-                              }
+                              e.currentTarget.style.backgroundColor = 'rgb(var(--color-sidebar-accent))';
+                              e.currentTarget.style.color = 'rgb(var(--color-sidebar-accent-foreground))';
                             }}
                             onMouseLeave={(e) => {
-                              if (!isWorktreeSelected) {
-                                e.currentTarget.style.backgroundColor = 'transparent';
-                                e.currentTarget.style.color = 'rgb(var(--color-sidebar-foreground))';
-                              }
+                              e.currentTarget.style.backgroundColor = 'transparent';
+                              e.currentTarget.style.color = 'rgb(var(--color-sidebar-foreground))';
                             }}
-                            onClick={() => selectWorktree(worktree.id)}
+                            onClick={() => {/* TODO: Select worktree */}}
                           >
                             <GitBranch className="w-3 h-3 mr-2 opacity-70" />
                             <span className="truncate flex-1">{worktree.branch}</span>
-                            {worktree.hasUncommittedChanges && (
-                              <div className="w-1.5 h-1.5 bg-yellow-500 rounded-full" />
-                            )}
                           </div>
                         );
                       })}
