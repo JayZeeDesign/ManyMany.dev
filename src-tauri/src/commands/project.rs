@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::fs;
 use uuid::Uuid;
 use chrono::Utc;
 
@@ -27,6 +28,15 @@ pub struct AddProjectRequest {
     pub path: String,
     pub project_type: String,
     pub default_branch: Option<String>,
+    pub workspace_repos: Option<Vec<WorkspaceRepo>>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct WorkspaceRepo {
+    pub name: String,
+    pub path: String,
+    pub default_branch: String,
+    pub is_git_repo: bool,
 }
 
 #[tauri::command]
@@ -105,4 +115,78 @@ pub fn get_default_branch(path: String) -> Result<String, String> {
     
     // Final fallback to "main"
     Ok("main".to_string())
+}
+
+#[tauri::command]
+pub async fn parse_workspace_file(workspace_path: String) -> Result<Vec<WorkspaceRepo>, String> {
+    let workspace_path = PathBuf::from(&workspace_path);
+    
+    if !workspace_path.exists() {
+        return Err("Workspace file does not exist".to_string());
+    }
+    
+    // Read and parse the workspace file
+    let content = fs::read_to_string(&workspace_path)
+        .map_err(|e| format!("Failed to read workspace file: {}", e))?;
+    
+    let workspace_data: serde_json::Value = serde_json::from_str(&content)
+        .map_err(|e| format!("Failed to parse workspace file: {}", e))?;
+    
+    let mut repos = Vec::new();
+    
+    // Extract folders from workspace
+    if let Some(folders) = workspace_data.get("folders").and_then(|f| f.as_array()) {
+        for folder in folders {
+            if let Some(path_str) = folder.get("path").and_then(|p| p.as_str()) {
+                let folder_path = if path_str.starts_with("./") || path_str.starts_with("../") {
+                    // Relative path - resolve relative to workspace file
+                    workspace_path.parent()
+                        .unwrap_or(&workspace_path)
+                        .join(path_str)
+                        .canonicalize()
+                        .unwrap_or_else(|_| workspace_path.parent().unwrap().join(path_str))
+                } else if path_str.starts_with("/") {
+                    // Absolute path
+                    PathBuf::from(path_str)
+                } else {
+                    // Relative path without ./
+                    workspace_path.parent()
+                        .unwrap_or(&workspace_path)
+                        .join(path_str)
+                        .canonicalize()
+                        .unwrap_or_else(|_| workspace_path.parent().unwrap().join(path_str))
+                };
+                
+                if folder_path.exists() {
+                    let folder_name = folder.get("name")
+                        .and_then(|n| n.as_str())
+                        .unwrap_or_else(|| {
+                            folder_path.file_name()
+                                .and_then(|n| n.to_str())
+                                .unwrap_or("Unknown")
+                        });
+                    
+                    // Check if it's a Git repository
+                    let is_git_repo = folder_path.join(".git").exists();
+                    
+                    // Get default branch if it's a Git repo
+                    let default_branch = if is_git_repo {
+                        get_default_branch(folder_path.to_string_lossy().to_string())
+                            .unwrap_or_else(|_| "main".to_string())
+                    } else {
+                        "main".to_string()
+                    };
+                    
+                    repos.push(WorkspaceRepo {
+                        name: folder_name.to_string(),
+                        path: folder_path.to_string_lossy().to_string(),
+                        default_branch,
+                        is_git_repo,
+                    });
+                }
+            }
+        }
+    }
+    
+    Ok(repos)
 }

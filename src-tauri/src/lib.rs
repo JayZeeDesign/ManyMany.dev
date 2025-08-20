@@ -2,7 +2,7 @@ mod commands;
 mod git_commands;
 
 use commands::{
-    project::{add_project, list_projects, remove_project, get_default_branch},
+    project::{add_project, list_projects, remove_project, get_default_branch, parse_workspace_file},
     worktree::{create_worktree, list_worktrees, remove_worktree},
     git::{get_git_status, git_commit, git_stage_file, git_unstage_file},
     terminal::open_editor,
@@ -28,6 +28,7 @@ pub fn run() {
             open_editor,
             is_git_repository,
             get_default_branch,
+            parse_workspace_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

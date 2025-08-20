@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { open } from '@tauri-apps/plugin-dialog';
-import { FolderOpen, FileCode2, GitBranch, Save, X, Trash2, Plus } from 'lucide-react';
+import { FolderOpen, FileCode2, GitBranch, Save, X, Trash2, Plus, FolderGit2 } from 'lucide-react';
 import { useProjectStore } from '@/stores/projectStore';
 import { invoke } from '@tauri-apps/api/core';
 
@@ -16,6 +16,14 @@ export function ProjectForm({ mode }: ProjectFormProps) {
   const [projectPath, setProjectPath] = useState('');
   const [defaultBranch, setDefaultBranch] = useState('main');
   const [projectType, setProjectType] = useState<'repository' | 'workspace'>('repository');
+  const [workspaceRepos, setWorkspaceRepos] = useState<WorkspaceRepo[]>([]);
+
+  interface WorkspaceRepo {
+    name: string;
+    path: string;
+    default_branch: string;
+    is_git_repo: boolean;
+  }
 
   // Initialize form with existing project data in edit mode
   useEffect(() => {
@@ -91,10 +99,31 @@ export function ProjectForm({ mode }: ProjectFormProps) {
         if (!projectName) {
           setProjectName(fileName);
         }
+
+        // Parse workspace file to get repositories
+        try {
+          const repos = await invoke<WorkspaceRepo[]>('parse_workspace_file', { 
+            workspacePath: selected 
+          });
+          setWorkspaceRepos(repos);
+        } catch (error) {
+          console.error('Failed to parse workspace file:', error);
+          setWorkspaceRepos([]);
+        }
       }
     } catch (error) {
       console.error('Failed to select workspace:', error);
     }
+  };
+
+  const updateWorkspaceRepoBranch = (repoIndex: number, newBranch: string) => {
+    setWorkspaceRepos(prev => 
+      prev.map((repo, index) => 
+        index === repoIndex 
+          ? { ...repo, default_branch: newBranch }
+          : repo
+      )
+    );
   };
 
   const handleSave = async () => {
@@ -109,7 +138,8 @@ export function ProjectForm({ mode }: ProjectFormProps) {
             name: projectName,
             path: projectPath,
             project_type: projectType,
-            default_branch: projectType === 'repository' ? defaultBranch : null
+            default_branch: projectType === 'repository' ? defaultBranch : null,
+            workspace_repos: projectType === 'workspace' ? workspaceRepos : null
           }
         });
         
@@ -320,6 +350,63 @@ export function ProjectForm({ mode }: ProjectFormProps) {
                     <p className="text-xs" style={{ color: 'rgb(var(--color-muted-foreground))' }}>
                       This branch will be used to create new worktrees
                     </p>
+                  </div>
+                )}
+
+                {projectType === 'workspace' && workspaceRepos.length > 0 && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Workspace Repositories</label>
+                    <p className="text-xs mb-3" style={{ color: 'rgb(var(--color-muted-foreground))' }}>
+                      Configure default branches for Git repositories found in this workspace
+                    </p>
+                    <div className="space-y-3">
+                      {workspaceRepos.map((repo, index) => (
+                        <div 
+                          key={index} 
+                          className="p-3 rounded border"
+                          style={{ 
+                            backgroundColor: 'rgb(var(--color-background))',
+                            borderColor: 'rgb(var(--color-border))'
+                          }}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <FolderGit2 className="w-4 h-4" style={{ 
+                                color: repo.is_git_repo ? 'rgb(var(--color-primary))' : 'rgb(var(--color-muted-foreground))' 
+                              }} />
+                              <span className="text-sm font-medium">{repo.name}</span>
+                              {!repo.is_git_repo && (
+                                <span className="text-xs px-2 py-1 rounded" style={{ 
+                                  backgroundColor: 'rgb(var(--color-muted))',
+                                  color: 'rgb(var(--color-muted-foreground))'
+                                }}>
+                                  Not a Git repo
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-xs mb-2" style={{ color: 'rgb(var(--color-muted-foreground))' }}>
+                            {repo.path}
+                          </div>
+                          {repo.is_git_repo && (
+                            <div className="flex items-center gap-2">
+                              <GitBranch className="w-4 h-4" style={{ color: 'rgb(var(--color-muted-foreground))' }} />
+                              <input
+                                value={repo.default_branch}
+                                onChange={(e) => updateWorkspaceRepoBranch(index, e.target.value)}
+                                placeholder="main"
+                                className="flex-1 h-8 rounded border px-2 text-sm"
+                                style={{
+                                  backgroundColor: 'rgb(var(--color-background))',
+                                  borderColor: 'rgb(var(--color-border))',
+                                  color: 'rgb(var(--color-foreground))'
+                                }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
 
