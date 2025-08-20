@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { open } from '@tauri-apps/plugin-dialog';
-import { FolderOpen, FileCode2, GitBranch, Save, X, Trash2, Plus, FolderGit2 } from 'lucide-react';
+import { FolderOpen, FileCode2, GitBranch, Save, X, Trash2, Plus, FolderGit2, Terminal, ExternalLink } from 'lucide-react';
 import { useProjectStore } from '@/stores/projectStore';
+import { CreateWorktreeDialog } from './CreateWorktreeDialog';
 import { invoke } from '@tauri-apps/api/core';
 
 interface ProjectFormProps {
@@ -17,6 +18,13 @@ export function ProjectForm({ mode }: ProjectFormProps) {
   const [defaultBranch, setDefaultBranch] = useState('main');
   const [projectType, setProjectType] = useState<'repository' | 'workspace'>('repository');
   const [workspaceRepos, setWorkspaceRepos] = useState<WorkspaceRepo[]>([]);
+  const [worktrees, setWorktrees] = useState<any[]>([]);
+  const [isCreateWorktreeOpen, setIsCreateWorktreeOpen] = useState(false);
+  
+  // Debug: Log state changes
+  useEffect(() => {
+    console.log('isCreateWorktreeOpen changed to:', isCreateWorktreeOpen);
+  }, [isCreateWorktreeOpen]);
 
   interface WorkspaceRepo {
     name: string;
@@ -32,6 +40,11 @@ export function ProjectForm({ mode }: ProjectFormProps) {
       setProjectPath(selectedProject.path);
       setDefaultBranch(selectedProject.defaultBranch || 'main');
       setProjectType(selectedProject.type);
+      
+      // Load worktrees for edit mode
+      if (selectedProject.type === 'repository') {
+        loadWorktrees();
+      }
     } else if (mode === 'create') {
       // Reset form for create mode
       setProjectName('');
@@ -124,6 +137,50 @@ export function ProjectForm({ mode }: ProjectFormProps) {
           : repo
       )
     );
+  };
+
+  const loadWorktrees = async () => {
+    if (!selectedProject || selectedProject.type !== 'repository') return;
+    
+    try {
+      const projectWorktrees = await invoke<any[]>('list_worktrees', {
+        projectPath: selectedProject.path
+      });
+      setWorktrees(projectWorktrees);
+    } catch (error) {
+      console.error('Failed to load worktrees:', error);
+      setWorktrees([]);
+    }
+  };
+
+  const handleWorktreeCreated = (worktree: any) => {
+    setWorktrees(prev => [...prev, worktree]);
+  };
+
+  const handleDeleteWorktree = async (worktree: any) => {
+    if (!window.confirm(`Are you sure you want to delete the worktree for "${worktree.branch}"?`)) {
+      return;
+    }
+
+    try {
+      await invoke('remove_worktree', {
+        projectPath: selectedProject?.path,
+        worktreePath: worktree.path
+      });
+      
+      setWorktrees(prev => prev.filter(w => w.id !== worktree.id));
+    } catch (error) {
+      console.error('Failed to delete worktree:', error);
+      // TODO: Show error toast
+    }
+  };
+
+  const handleOpenInEditor = async (worktreePath: string) => {
+    try {
+      await invoke('open_editor', { path: worktreePath });
+    } catch (error) {
+      console.error('Failed to open editor:', error);
+    }
   };
 
   const handleSave = async () => {
@@ -410,6 +467,119 @@ export function ProjectForm({ mode }: ProjectFormProps) {
                   </div>
                 )}
 
+                {!isCreateMode && selectedProject && selectedProject.type === 'repository' && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-medium">Worktrees</label>
+                      <button
+                        onClick={() => {
+                          console.log('Create Worktree button clicked');
+                          console.log('Selected project:', selectedProject);
+                          setIsCreateWorktreeOpen(true);
+                        }}
+                        className="px-3 py-1 text-sm font-medium rounded-md transition-all flex items-center gap-1"
+                        style={{ 
+                          backgroundColor: 'rgb(var(--color-primary))',
+                          color: 'rgb(var(--color-primary-foreground))'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = 'translateY(-2px)';
+                          e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = 'translateY(0)';
+                          e.currentTarget.style.boxShadow = 'none';
+                        }}
+                      >
+                        <Plus className="w-3 h-3" />
+                        Create Worktree
+                      </button>
+                    </div>
+                    <p className="text-xs mb-3" style={{ color: 'rgb(var(--color-muted-foreground))' }}>
+                      Manage Git worktrees for different branches
+                    </p>
+                    
+                    {worktrees.length > 0 ? (
+                      <div className="space-y-2">
+                        {worktrees.map((worktree) => (
+                          <div 
+                            key={worktree.id} 
+                            className="p-3 rounded border"
+                            style={{ 
+                              backgroundColor: 'rgb(var(--color-background))',
+                              borderColor: 'rgb(var(--color-border))'
+                            }}
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <GitBranch className="w-4 h-4" style={{ color: 'rgb(var(--color-primary))' }} />
+                                <span className="text-sm font-medium">{worktree.branch}</span>
+                                {worktree.has_uncommitted_changes && (
+                                  <span className="text-xs px-2 py-1 rounded" style={{ 
+                                    backgroundColor: 'rgb(var(--color-destructive))',
+                                    color: 'rgb(var(--color-destructive-foreground))'
+                                  }}>
+                                    Uncommitted changes
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => handleOpenInEditor(worktree.path)}
+                                  className="p-1 rounded transition-all"
+                                  style={{ 
+                                    backgroundColor: 'transparent',
+                                    color: 'rgb(var(--color-muted-foreground))'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'rgb(var(--color-muted))';
+                                    e.currentTarget.style.color = 'rgb(var(--color-foreground))';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'transparent';
+                                    e.currentTarget.style.color = 'rgb(var(--color-muted-foreground))';
+                                  }}
+                                  title="Open in editor"
+                                >
+                                  <ExternalLink className="w-3 h-3" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteWorktree(worktree)}
+                                  className="p-1 rounded transition-all"
+                                  style={{ 
+                                    backgroundColor: 'transparent',
+                                    color: 'rgb(var(--color-muted-foreground))'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'rgb(var(--color-destructive))';
+                                    e.currentTarget.style.color = 'rgb(var(--color-destructive-foreground))';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'transparent';
+                                    e.currentTarget.style.color = 'rgb(var(--color-muted-foreground))';
+                                  }}
+                                  title="Delete worktree"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
+                            <div className="text-xs" style={{ color: 'rgb(var(--color-muted-foreground))' }}>
+                              {worktree.path}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-6" style={{ color: 'rgb(var(--color-muted-foreground))' }}>
+                        <GitBranch className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                        <p className="text-sm">No worktrees yet.</p>
+                        <p className="text-xs mt-1">Create one to work on different branches simultaneously.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="flex justify-end gap-2 pt-4">
                   <button
                     className="px-4 py-2 text-sm font-medium rounded-md transition-all border"
@@ -456,6 +626,28 @@ export function ProjectForm({ mode }: ProjectFormProps) {
           )}
         </div>
       </div>
+
+      {selectedProject && (
+        <>
+          {console.log('Rendering CreateWorktreeDialog with:', {
+            selectedProject: selectedProject.name,
+            isCreateWorktreeOpen,
+            projectId: selectedProject.id,
+            projectPath: selectedProject.path
+          })}
+          <CreateWorktreeDialog
+            isOpen={isCreateWorktreeOpen}
+            onClose={() => {
+              console.log('Dialog close called');
+              setIsCreateWorktreeOpen(false);
+            }}
+            onSuccess={handleWorktreeCreated}
+            projectId={selectedProject.id}
+            projectPath={selectedProject.path}
+            projectName={selectedProject.name}
+          />
+        </>
+      )}
     </div>
   );
 }

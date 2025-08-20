@@ -3,7 +3,7 @@ mod git_commands;
 
 use commands::{
     project::{add_project, list_projects, remove_project, get_default_branch, parse_workspace_file},
-    worktree::{create_worktree, list_worktrees, remove_worktree},
+    worktree::{create_worktree, list_worktrees, remove_worktree, get_available_branches},
     git::{get_git_status, git_commit, git_stage_file, git_unstage_file},
     terminal::open_editor,
 };
@@ -21,6 +21,7 @@ pub fn run() {
             create_worktree,
             list_worktrees,
             remove_worktree,
+            get_available_branches,
             get_git_status,
             git_commit,
             git_stage_file,
