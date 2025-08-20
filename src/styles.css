@@ -1,0 +1,62 @@
+@import 'tailwindcss';
+
+/* Base styles - Dark mode by default */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-feature-settings: "rlig" 1, "calt" 1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #1e1e1e;
+  color: #cccccc;
+}
+
+/* macOS native window styles */
+.titlebar {
+  -webkit-app-region: drag;
+  user-select: none;
+  background-color: #2d2d30;
+}
+
+.titlebar button,
+.titlebar a,
+.titlebar input {
+  -webkit-app-region: no-drag;
+}
+
+/* Vibrancy effect for sidebar - dark mode */
+.sidebar {
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  background-color: rgba(37, 37, 38, 0.95);
+}
+
+/* Terminal styles */
+.terminal {
+  font-family: "SF Mono", Monaco, Inconsolata, "Fira Code", monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  background-color: #1e1e1e;
+}
+
+/* Custom scrollbar for macOS feel - dark mode */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: rgba(121, 121, 121, 0.4);
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(121, 121, 121, 0.6);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
