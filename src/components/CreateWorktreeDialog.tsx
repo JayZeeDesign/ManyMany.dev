@@ -20,15 +20,6 @@ export function CreateWorktreeDialog({
   projectName 
 }: CreateWorktreeDialogProps) {
   
-  // Debug: Log props
-  useEffect(() => {
-    console.log('CreateWorktreeDialog props:', {
-      isOpen,
-      projectId,
-      projectPath,
-      projectName
-    });
-  }, [isOpen, projectId, projectPath, projectName]);
   const [selectedBranch, setSelectedBranch] = useState('');
   const [customBranch, setCustomBranch] = useState('');
   const [worktreeName, setWorktreeName] = useState('');
@@ -38,9 +29,7 @@ export function CreateWorktreeDialog({
   const [useCustomBranch, setUseCustomBranch] = useState(false);
 
   useEffect(() => {
-    console.log('CreateWorktreeDialog useEffect triggered:', { isOpen, projectPath });
     if (isOpen && projectPath) {
-      console.log('Loading available branches for:', projectPath);
       loadAvailableBranches();
     }
   }, [isOpen, projectPath]);
@@ -107,11 +96,9 @@ export function CreateWorktreeDialog({
   };
 
   if (!isOpen) {
-    console.log('CreateWorktreeDialog not rendering because isOpen is false');
     return null;
   }
   
-  console.log('CreateWorktreeDialog rendering with isOpen:', isOpen);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">

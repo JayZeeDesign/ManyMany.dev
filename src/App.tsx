@@ -1,14 +1,17 @@
 import React from 'react';
 import { Sidebar } from './components/Sidebar';
 import { ProjectForm } from './components/ProjectForm';
+import { WorktreeView } from './components/WorktreeView';
 import { useProjectStore } from './stores/projectStore';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { GitBranch, Terminal, FolderGit2 } from 'lucide-react';
 
 function App() {
-  const { selectedProjectId, getSelectedProject } = useProjectStore();
+  const { selectedProjectId, selectedWorktreeId, getSelectedProject, getSelectedWorktree } = useProjectStore();
   const selectedProject = getSelectedProject();
+  const selectedWorktree = getSelectedWorktree();
+  
 
   return (
     <div className="flex h-screen" style={{ backgroundColor: 'rgb(var(--color-background))', color: 'rgb(var(--color-foreground))' }}>
@@ -34,7 +37,9 @@ function App() {
         {/* Content Area */}
         <div className="flex-1 flex">
           {/* Main Content Area */}
-          {selectedProjectId === null ? (
+          {selectedWorktreeId && selectedWorktree ? (
+            <WorktreeView />
+          ) : selectedProjectId === null ? (
             <ProjectForm mode="create" />
           ) : selectedProject ? (
             <ProjectForm mode="edit" />

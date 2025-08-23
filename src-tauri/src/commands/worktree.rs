@@ -162,7 +162,7 @@ pub async fn list_worktrees(project_path: String) -> Result<Vec<Worktree>, Strin
             
             let path = line.strip_prefix("worktree ").unwrap_or("");
             current_worktree = Some(Worktree {
-                id: Uuid::new_v4().to_string(),
+                id: format!("worktree-{:x}", path.bytes().fold(0u64, |acc, b| acc.wrapping_mul(31).wrapping_add(b as u64))),
                 project_id: String::new(), // Will be set by caller
                 branch: String::new(), // Will be set from branch line
                 path: path.to_string(),

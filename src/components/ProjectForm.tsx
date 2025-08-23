@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { open } from '@tauri-apps/plugin-dialog';
-import { FolderOpen, FileCode2, GitBranch, Save, X, Trash2, Plus, FolderGit2, Terminal, ExternalLink } from 'lucide-react';
+import { FolderOpen, FileCode2, GitBranch, Save, X, Trash2, Plus, FolderGit2, ExternalLink, ChevronRight } from 'lucide-react';
 import { useProjectStore } from '@/stores/projectStore';
 import { CreateWorktreeDialog } from './CreateWorktreeDialog';
 import { invoke } from '@tauri-apps/api/core';
@@ -10,8 +10,14 @@ interface ProjectFormProps {
 }
 
 export function ProjectForm({ mode }: ProjectFormProps) {
-  const { getSelectedProject, addProject, updateProject, removeProject, selectProject } = useProjectStore();
+  const { getSelectedProject, addProject, updateProject, removeProject, selectProject, selectWorktree, showCreateWorktreeDialog, setShowCreateWorktreeDialog } = useProjectStore();
   const selectedProject = mode === 'edit' ? getSelectedProject() : null;
+
+  // Helper function to extract worktree name from path
+  const getWorktreeName = (worktreePath: string) => {
+    const pathParts = worktreePath.split('/');
+    return pathParts[pathParts.length - 1] || 'Unnamed';
+  };
   
   const [projectName, setProjectName] = useState('');
   const [projectPath, setProjectPath] = useState('');
@@ -19,12 +25,7 @@ export function ProjectForm({ mode }: ProjectFormProps) {
   const [projectType, setProjectType] = useState<'repository' | 'workspace'>('repository');
   const [workspaceRepos, setWorkspaceRepos] = useState<WorkspaceRepo[]>([]);
   const [worktrees, setWorktrees] = useState<any[]>([]);
-  const [isCreateWorktreeOpen, setIsCreateWorktreeOpen] = useState(false);
   
-  // Debug: Log state changes
-  useEffect(() => {
-    console.log('isCreateWorktreeOpen changed to:', isCreateWorktreeOpen);
-  }, [isCreateWorktreeOpen]);
 
   interface WorkspaceRepo {
     name: string;
@@ -41,8 +42,8 @@ export function ProjectForm({ mode }: ProjectFormProps) {
       setDefaultBranch(selectedProject.defaultBranch || 'main');
       setProjectType(selectedProject.type);
       
-      // Load worktrees for edit mode
-      if (selectedProject.type === 'repository') {
+      // Load worktrees for edit mode - only once when project changes
+      if (selectedProject.type === 'repository' && worktrees.length === 0) {
         loadWorktrees();
       }
     } else if (mode === 'create') {
@@ -52,7 +53,7 @@ export function ProjectForm({ mode }: ProjectFormProps) {
       setDefaultBranch('main');
       setProjectType('repository');
     }
-  }, [mode, selectedProject]);
+  }, [mode, selectedProject?.id]); // Only depend on project ID, not the full object
 
   const handleSelectFolder = async () => {
     try {
@@ -82,7 +83,6 @@ export function ProjectForm({ mode }: ProjectFormProps) {
             setProjectType('workspace');
           }
         } catch (error) {
-          console.log('Git detection failed:', error);
           setProjectType('workspace');
         }
       }
@@ -140,13 +140,28 @@ export function ProjectForm({ mode }: ProjectFormProps) {
   };
 
   const loadWorktrees = async () => {
-    if (!selectedProject || selectedProject.type !== 'repository') return;
+    if (!selectedProject || selectedProject.type !== 'repository') {
+      return;
+    }
     
     try {
       const projectWorktrees = await invoke<any[]>('list_worktrees', {
         projectPath: selectedProject.path
       });
       setWorktrees(projectWorktrees);
+      
+      // Update the project store with the loaded worktrees
+      const formattedWorktrees = projectWorktrees.map(wt => ({
+        id: wt.id,
+        branch: wt.branch,
+        path: wt.path,
+        createdAt: new Date(wt.created_at)
+      }));
+      
+      updateProject(selectedProject.id, {
+        worktrees: formattedWorktrees
+      });
+      
     } catch (error) {
       console.error('Failed to load worktrees:', error);
       setWorktrees([]);
@@ -155,6 +170,17 @@ export function ProjectForm({ mode }: ProjectFormProps) {
 
   const handleWorktreeCreated = (worktree: any) => {
     setWorktrees(prev => [...prev, worktree]);
+    // Update the project store with new worktree
+    if (selectedProject) {
+      updateProject(selectedProject.id, {
+        worktrees: [...(selectedProject.worktrees || []), {
+          id: worktree.id,
+          branch: worktree.branch,
+          path: worktree.path,
+          createdAt: new Date(worktree.created_at)
+        }]
+      });
+    }
   };
 
   const handleDeleteWorktree = async (worktree: any) => {
@@ -169,6 +195,13 @@ export function ProjectForm({ mode }: ProjectFormProps) {
       });
       
       setWorktrees(prev => prev.filter(w => w.id !== worktree.id));
+      
+      // Update the project store to remove the worktree
+      if (selectedProject) {
+        updateProject(selectedProject.id, {
+          worktrees: (selectedProject.worktrees || []).filter(w => w.id !== worktree.id)
+        });
+      }
     } catch (error) {
       console.error('Failed to delete worktree:', error);
       // TODO: Show error toast
@@ -201,7 +234,7 @@ export function ProjectForm({ mode }: ProjectFormProps) {
         });
         
         // Add to store
-        addProject(result);
+        addProject(result as any);
         
         // Reset form
         setProjectName('');
@@ -472,11 +505,7 @@ export function ProjectForm({ mode }: ProjectFormProps) {
                     <div className="flex items-center justify-between">
                       <label className="text-sm font-medium">Worktrees</label>
                       <button
-                        onClick={() => {
-                          console.log('Create Worktree button clicked');
-                          console.log('Selected project:', selectedProject);
-                          setIsCreateWorktreeOpen(true);
-                        }}
+                        onClick={() => setShowCreateWorktreeDialog(true)}
                         className="px-3 py-1 text-sm font-medium rounded-md transition-all flex items-center gap-1"
                         style={{ 
                           backgroundColor: 'rgb(var(--color-primary))',
@@ -504,16 +533,30 @@ export function ProjectForm({ mode }: ProjectFormProps) {
                         {worktrees.map((worktree) => (
                           <div 
                             key={worktree.id} 
-                            className="p-3 rounded border"
+                            className="p-3 rounded border cursor-pointer transition-all group"
                             style={{ 
                               backgroundColor: 'rgb(var(--color-background))',
                               borderColor: 'rgb(var(--color-border))'
                             }}
+                            onClick={() => selectWorktree(worktree.id)}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = 'rgb(var(--color-muted))';
+                              e.currentTarget.style.borderColor = 'rgb(var(--color-primary))';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = 'rgb(var(--color-background))';
+                              e.currentTarget.style.borderColor = 'rgb(var(--color-border))';
+                            }}
                           >
                             <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 flex-1">
                                 <GitBranch className="w-4 h-4" style={{ color: 'rgb(var(--color-primary))' }} />
-                                <span className="text-sm font-medium">{worktree.branch}</span>
+                                <div className="flex flex-col">
+                                  <span className="text-sm font-medium">{getWorktreeName(worktree.path)}</span>
+                                  <span className="text-xs" style={{ color: 'rgb(var(--color-muted-foreground))' }}>
+                                    {worktree.branch}
+                                  </span>
+                                </div>
                                 {worktree.has_uncommitted_changes && (
                                   <span className="text-xs px-2 py-1 rounded" style={{ 
                                     backgroundColor: 'rgb(var(--color-destructive))',
@@ -525,7 +568,10 @@ export function ProjectForm({ mode }: ProjectFormProps) {
                               </div>
                               <div className="flex items-center gap-1">
                                 <button
-                                  onClick={() => handleOpenInEditor(worktree.path)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenInEditor(worktree.path);
+                                  }}
                                   className="p-1 rounded transition-all"
                                   style={{ 
                                     backgroundColor: 'transparent',
@@ -544,7 +590,10 @@ export function ProjectForm({ mode }: ProjectFormProps) {
                                   <ExternalLink className="w-3 h-3" />
                                 </button>
                                 <button
-                                  onClick={() => handleDeleteWorktree(worktree)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteWorktree(worktree);
+                                  }}
                                   className="p-1 rounded transition-all"
                                   style={{ 
                                     backgroundColor: 'transparent',
@@ -562,6 +611,8 @@ export function ProjectForm({ mode }: ProjectFormProps) {
                                 >
                                   <X className="w-3 h-3" />
                                 </button>
+                                <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" 
+                                               style={{ color: 'rgb(var(--color-muted-foreground))' }} />
                               </div>
                             </div>
                             <div className="text-xs" style={{ color: 'rgb(var(--color-muted-foreground))' }}>
@@ -629,18 +680,9 @@ export function ProjectForm({ mode }: ProjectFormProps) {
 
       {selectedProject && (
         <>
-          {console.log('Rendering CreateWorktreeDialog with:', {
-            selectedProject: selectedProject.name,
-            isCreateWorktreeOpen,
-            projectId: selectedProject.id,
-            projectPath: selectedProject.path
-          })}
           <CreateWorktreeDialog
-            isOpen={isCreateWorktreeOpen}
-            onClose={() => {
-              console.log('Dialog close called');
-              setIsCreateWorktreeOpen(false);
-            }}
+            isOpen={showCreateWorktreeDialog}
+            onClose={() => setShowCreateWorktreeDialog(false)}
             onSuccess={handleWorktreeCreated}
             projectId={selectedProject.id}
             projectPath={selectedProject.path}

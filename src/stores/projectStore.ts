@@ -22,11 +22,16 @@ export interface Worktree {
 interface ProjectStore {
   projects: Project[];
   selectedProjectId: string | null;
+  selectedWorktreeId: string | null;
+  showCreateWorktreeDialog: boolean;
   addProject: (project: Omit<Project, 'id' | 'createdAt'>) => void;
   removeProject: (id: string) => void;
   selectProject: (id: string | null) => void;
+  selectWorktree: (worktreeId: string | null) => void;
   updateProject: (id: string, updates: Partial<Project>) => void;
   getSelectedProject: () => Project | undefined;
+  getSelectedWorktree: () => Worktree | undefined;
+  setShowCreateWorktreeDialog: (show: boolean) => void;
 }
 
 export const useProjectStore = create<ProjectStore>()(
@@ -34,6 +39,8 @@ export const useProjectStore = create<ProjectStore>()(
     (set, get) => ({
       projects: [],
       selectedProjectId: null,
+      selectedWorktreeId: null,
+      showCreateWorktreeDialog: false,
       
       addProject: (projectData: any) => {
         const project: Project = {
@@ -59,7 +66,7 @@ export const useProjectStore = create<ProjectStore>()(
       },
       
       selectProject: (id) => {
-        set({ selectedProjectId: id });
+        set({ selectedProjectId: id, selectedWorktreeId: null });
         if (id) {
           set((state) => ({
             projects: state.projects.map(p => 
@@ -69,6 +76,10 @@ export const useProjectStore = create<ProjectStore>()(
             )
           }));
         }
+      },
+      
+      selectWorktree: (worktreeId) => {
+        set({ selectedWorktreeId: worktreeId });
       },
       
       updateProject: (id, updates) => {
@@ -82,6 +93,17 @@ export const useProjectStore = create<ProjectStore>()(
       getSelectedProject: () => {
         const state = get();
         return state.projects.find(p => p.id === state.selectedProjectId);
+      },
+      
+      getSelectedWorktree: () => {
+        const state = get();
+        const project = state.projects.find(p => p.id === state.selectedProjectId);
+        if (!project || !project.worktrees) return undefined;
+        return project.worktrees.find(w => w.id === state.selectedWorktreeId);
+      },
+
+      setShowCreateWorktreeDialog: (show: boolean) => {
+        set({ showCreateWorktreeDialog: show });
       }
     }),
     {

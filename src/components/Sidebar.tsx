@@ -8,8 +8,17 @@ export const Sidebar: React.FC = () => {
   const {
     projects,
     selectedProjectId,
+    selectedWorktreeId,
     selectProject,
+    selectWorktree,
+    setShowCreateWorktreeDialog,
   } = useProjectStore();
+
+  // Helper function to extract worktree name from path
+  const getWorktreeName = (worktreePath: string) => {
+    const pathParts = worktreePath.split('/');
+    return pathParts[pathParts.length - 1] || 'Unnamed';
+  };
   
   const sidebarCollapsed = false; // TODO: Add to a UI store later
 
@@ -184,21 +193,32 @@ export const Sidebar: React.FC = () => {
                             key={worktree.id}
                             className="flex items-center px-3 py-1 cursor-pointer transition-all text-sm"
                             style={{
-                              backgroundColor: 'transparent',
-                              color: 'rgb(var(--color-sidebar-foreground))'
+                              backgroundColor: selectedWorktreeId === worktree.id ? 'rgb(var(--color-sidebar-primary))' : 'transparent',
+                              color: selectedWorktreeId === worktree.id ? 'rgb(var(--color-sidebar-primary-foreground))' : 'rgb(var(--color-sidebar-foreground))'
                             }}
                             onMouseEnter={(e) => {
-                              e.currentTarget.style.backgroundColor = 'rgb(var(--color-sidebar-accent))';
-                              e.currentTarget.style.color = 'rgb(var(--color-sidebar-accent-foreground))';
+                              if (selectedWorktreeId !== worktree.id) {
+                                e.currentTarget.style.backgroundColor = 'rgb(var(--color-sidebar-accent))';
+                                e.currentTarget.style.color = 'rgb(var(--color-sidebar-accent-foreground))';
+                              }
                             }}
                             onMouseLeave={(e) => {
-                              e.currentTarget.style.backgroundColor = 'transparent';
-                              e.currentTarget.style.color = 'rgb(var(--color-sidebar-foreground))';
+                              if (selectedWorktreeId !== worktree.id) {
+                                e.currentTarget.style.backgroundColor = 'transparent';
+                                e.currentTarget.style.color = 'rgb(var(--color-sidebar-foreground))';
+                              }
                             }}
-                            onClick={() => {/* TODO: Select worktree */}}
+                            onClick={() => {
+                              // First select the project to make sure we have the right context
+                              selectProject(project.id);
+                              // Then select the worktree
+                              selectWorktree(worktree.id);
+                            }}
                           >
                             <GitBranch className="w-3 h-3 mr-2 opacity-70" />
-                            <span className="truncate flex-1">{worktree.branch}</span>
+                            <span className="truncate flex-1" title={`${getWorktreeName(worktree.path)} (${worktree.branch})`}>
+                              {getWorktreeName(worktree.path)}
+                            </span>
                           </div>
                         );
                       })}
@@ -215,7 +235,11 @@ export const Sidebar: React.FC = () => {
                           e.currentTarget.style.color = 'rgb(var(--color-muted-foreground))';
                           e.currentTarget.style.backgroundColor = 'transparent';
                         }}
-                        onClick={() => {/* TODO: Create new worktree */}}
+                        onClick={() => {
+                          // Select the project and show the dialog
+                          selectProject(project.id);
+                          setShowCreateWorktreeDialog(true);
+                        }}
                       >
                         <Plus className="w-3 h-3 mr-2 transition-transform group-hover:rotate-90" />
                         New Worktree
