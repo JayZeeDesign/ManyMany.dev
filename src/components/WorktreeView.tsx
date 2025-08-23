@@ -76,7 +76,7 @@ export function WorktreeView() {
     const createDefaultTerminals = async () => {
       if (defaultTerminals.length === 0) return;
       
-      for (const [index, defaultTerminal] of defaultTerminals.entries()) {
+      for (const defaultTerminal of defaultTerminals) {
         try {
           // Create terminal in store
           const newTerminal = createTerminal({
@@ -287,7 +287,7 @@ export function WorktreeView() {
                           setEditingTerminalId(null);
                         }
                       }}
-                      onFocus={(e) => {
+                      onFocus={() => {
                         console.log(`[WorktreeView] Input focused successfully`);
                       }}
                       onClick={(e) => e.stopPropagation()}

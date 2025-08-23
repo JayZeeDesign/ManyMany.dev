@@ -136,7 +136,7 @@ export function TerminalSettings({ mode = 'edit', previewTerminals, onUpdatePrev
       </div>
 
       <div className="space-y-3">
-        {defaultTerminals.map((terminal, index) => (
+        {defaultTerminals.map((terminal) => (
           <div
             key={terminal.id}
             className="p-4 rounded-lg border"
