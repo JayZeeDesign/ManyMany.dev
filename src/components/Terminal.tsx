@@ -11,13 +11,14 @@ interface TerminalProps {
   worktreeId: string;
   workingDirectory: string;
   name: string;
+  isRestored?: boolean;
 }
 
 export const Terminal = React.forwardRef<{ focus: () => void }, TerminalProps>(({
   terminalId: providedTerminalId,
-  worktreeId,
   workingDirectory,
-  name
+  name,
+  isRestored
 }, ref) => {
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
@@ -27,6 +28,9 @@ export const Terminal = React.forwardRef<{ focus: () => void }, TerminalProps>((
   // Event listener cleanup functions
   const unlistenOutputRef = useRef<UnlistenFn | null>(null);
   const unlistenClosedRef = useRef<UnlistenFn | null>(null);
+  
+  // Store current terminal ID in ref for input handlers
+  const currentTerminalIdRef = useRef<string | null>(terminalId);
 
   // Expose focus function to parent component
   useImperativeHandle(ref, () => ({
@@ -38,8 +42,9 @@ export const Terminal = React.forwardRef<{ focus: () => void }, TerminalProps>((
   }));
 
   useEffect(() => {
-    if (!terminalRef.current) return;
-
+    if (!terminalRef.current) {
+      return;
+    }
     // Create XTerm instance
     const xterm = new XTerm({
       theme: {
@@ -101,52 +106,10 @@ export const Terminal = React.forwardRef<{ focus: () => void }, TerminalProps>((
       }
     }, 100);
 
-    // Handle user input - send via terminal_input command
-    xterm.onData(async (data) => {
-      if (terminalId) {
-        try {
-          await invoke('terminal_input', { terminalId, data });
-        } catch (error) {
-          console.error('Failed to send input to terminal:', error);
-        }
-      }
-    });
+    // Input handlers will be set up in setupEventListeners when we have a terminal ID
 
-    // Handle special key combinations that XTerm doesn't handle by default
-    xterm.onKey(({ domEvent }) => {
-      if (terminalId && domEvent.metaKey) { // Cmd key on Mac
-        let specialKey = '';
-        
-        switch (domEvent.key) {
-          case 'Backspace': // Cmd+Delete -> Clear line (Ctrl+U)
-            specialKey = '\x15'; // Ctrl+U
-            break;
-          case 'ArrowLeft': // Cmd+Left -> Beginning of line (Ctrl+A)
-            specialKey = '\x01'; // Ctrl+A
-            break;
-          case 'ArrowRight': // Cmd+Right -> End of line (Ctrl+E)
-            specialKey = '\x05'; // Ctrl+E
-            break;
-          case 'a': // Cmd+A -> Select all (Ctrl+A)
-            if (domEvent.shiftKey) return; // Let browser handle Cmd+Shift+A
-            specialKey = '\x01'; // Ctrl+A
-            break;
-        }
-        
-        if (specialKey) {
-          domEvent.preventDefault();
-          invoke('terminal_input', { terminalId, data: specialKey }).catch(console.error);
-        }
-      }
-    });
-
-    // Create or connect to terminal
-    if (!providedTerminalId) {
-      createBackendTerminal();
-    } else {
-      setTerminalId(providedTerminalId);
-      setupEventListeners(providedTerminalId);
-    }
+    // Don't create backend terminal here - WorktreeView handles that
+    // Just wait for the terminal ID to be provided via props
 
     // Handle window resize
     const handleResize = () => {
@@ -181,38 +144,34 @@ export const Terminal = React.forwardRef<{ focus: () => void }, TerminalProps>((
     };
   }, []); // Empty dependency array - only run once on mount
 
-  const createBackendTerminal = async () => {
-    try {
-      const backendTerminalId = await invoke('create_terminal', {
-        request: {
-          worktree_id: worktreeId,
-          name,
-          working_directory: workingDirectory
-        }
-      }) as string;
+  // Handle terminal ID changes for restored terminals
+  useEffect(() => {
+    if (providedTerminalId && providedTerminalId !== terminalId && xtermRef.current) {
+      setTerminalId(providedTerminalId);
+      currentTerminalIdRef.current = providedTerminalId; // Update ref for input handlers
       
-      setTerminalId(backendTerminalId);
-      await setupEventListeners(backendTerminalId);
+      // Only setup listeners if we don't already have them
+      const hasListeners = unlistenOutputRef.current && unlistenClosedRef.current;
       
-      // Add custom welcome message
-      if (xtermRef.current) {
-        setTimeout(() => {
-          if (xtermRef.current) {
-            xtermRef.current.write('\r\n\x1b[36mCreated by AI Builder Club with ❤️\x1b[0m\r\n');
-          }
-        }, 200);
-      }
-      
-    } catch (error) {
-      console.error('Failed to create terminal session:', error);
-      if (xtermRef.current) {
-        xtermRef.current.write('\r\n\x1b[31mFailed to create terminal session\x1b[0m\r\n');
+      if (!hasListeners) {
+        setupEventListeners(providedTerminalId);
       }
     }
-  };
+  }, [providedTerminalId, terminalId, name]);
+
 
   const setupEventListeners = async (id: string) => {
     try {
+      // Clean up existing listeners first
+      if (unlistenOutputRef.current) {
+        unlistenOutputRef.current();
+        unlistenOutputRef.current = null;
+      }
+      if (unlistenClosedRef.current) {
+        unlistenClosedRef.current();
+        unlistenClosedRef.current = null;
+      }
+
       // Listen for terminal output - REAL-TIME STREAMING!
       unlistenOutputRef.current = await listen(`terminal-output-${id}`, (event) => {
         const output = event.payload as string;
@@ -228,8 +187,67 @@ export const Terminal = React.forwardRef<{ focus: () => void }, TerminalProps>((
         }
       });
       
+      // Set up input handlers now that we have a terminal ID
+      if (xtermRef.current) {
+        // Update terminal ID ref for input handlers
+        currentTerminalIdRef.current = id;
+        
+        // Handle user input - send via terminal_input command  
+        xtermRef.current.onData(async (data) => {
+          const currentId = currentTerminalIdRef.current;
+          if (currentId) {
+            try {
+              await invoke('terminal_input', { terminalId: currentId, data });
+            } catch (error) {
+              console.error(`Terminal ${name}: Failed to send input to backend terminal ${currentId}:`, error);
+            }
+          }
+        });
+
+        // Handle special key combinations that XTerm doesn't handle by default
+        xtermRef.current.onKey(({ domEvent }) => {
+          const currentId = currentTerminalIdRef.current;
+          if (currentId && domEvent.metaKey) { // Cmd key on Mac
+            let specialKey = '';
+            
+            switch (domEvent.key) {
+              case 'Backspace': // Cmd+Delete -> Clear line (Ctrl+U)
+                specialKey = '\x15'; // Ctrl+U
+                break;
+              case 'ArrowLeft': // Cmd+Left -> Beginning of line (Ctrl+A)
+                specialKey = '\x01'; // Ctrl+A
+                break;
+              case 'ArrowRight': // Cmd+Right -> End of line (Ctrl+E)
+                specialKey = '\x05'; // Ctrl+E
+                break;
+              case 'a': // Cmd+A -> Select all (Ctrl+A)
+                if (domEvent.shiftKey) return; // Let browser handle Cmd+Shift+A
+                specialKey = '\x01'; // Ctrl+A
+                break;
+            }
+            
+            if (specialKey) {
+              domEvent.preventDefault();
+              invoke('terminal_input', { terminalId: currentId, data: specialKey }).catch(console.error);
+            }
+          }
+        });
+      }
+      
+      // Add welcome message when connecting to terminal
+      if (xtermRef.current) {
+        setTimeout(() => {
+          if (xtermRef.current) {
+            if (isRestored) {
+              xtermRef.current.write(`\r\n\x1b[33mTerminal restored in ${workingDirectory}\x1b[0m\r\n`);
+            } else {
+              xtermRef.current.write('\r\n\x1b[36mTerminal session created\x1b[0m\r\n');
+            }
+          }
+        }, 200);
+      }
     } catch (error) {
-      console.error('Failed to setup event listeners:', error);
+      console.error(`Failed to setup event listeners:`, error);
     }
   };
 
