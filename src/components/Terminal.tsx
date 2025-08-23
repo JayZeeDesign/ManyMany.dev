@@ -3,6 +3,7 @@ import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { invoke } from '@tauri-apps/api/core';
+import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { X, Maximize2, Minimize2 } from 'lucide-react';
 import '@xterm/xterm/css/xterm.css';
 
@@ -27,6 +28,10 @@ export const Terminal: React.FC<TerminalProps> = ({
   const [terminalId, setTerminalId] = useState<string | null>(providedTerminalId || null);
   const [isConnected, setIsConnected] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
+  
+  // Event listener cleanup functions
+  const unlistenOutputRef = useRef<UnlistenFn | null>(null);
+  const unlistenClosedRef = useRef<UnlistenFn | null>(null);
 
   useEffect(() => {
     if (!terminalRef.current) return;
@@ -59,6 +64,14 @@ export const Terminal: React.FC<TerminalProps> = ({
       lineHeight: 1.2,
       cursorBlink: true,
       convertEol: true,
+      disableStdin: false,
+      allowTransparency: true,
+      // Enable proper terminal key handling
+      macOptionIsMeta: true,
+      macOptionClickForcesSelection: false,
+      rightClickSelectsWord: false,
+      // Enable scrollback for terminal history
+      scrollback: 1000,
     });
 
     // Add addons
@@ -75,96 +88,153 @@ export const Terminal: React.FC<TerminalProps> = ({
     xtermRef.current = xterm;
     fitAddonRef.current = fitAddon;
 
-    // Fit terminal to container
-    fitAddon.fit();
+    // Fit terminal to container after a short delay
+    setTimeout(() => {
+      try {
+        fitAddon.fit();
+      } catch (error) {
+        console.warn('Failed to fit terminal on initial load:', error);
+      }
+    }, 100);
 
-    // Handle data input from user
+    // Handle user input - send via terminal_input command
     xterm.onData(async (data) => {
       if (terminalId) {
         try {
-          await invoke('write_to_terminal', { terminalId, data });
+          await invoke('terminal_input', { terminalId, data });
         } catch (error) {
-          console.error('Failed to write to terminal:', error);
+          console.error('Failed to send input to terminal:', error);
         }
       }
     });
 
-    // Create backend terminal if not provided
+    // Handle special key combinations that XTerm doesn't handle by default
+    xterm.onKey(({ domEvent }) => {
+      if (terminalId && domEvent.metaKey) { // Cmd key on Mac
+        let specialKey = '';
+        
+        switch (domEvent.key) {
+          case 'Backspace': // Cmd+Delete -> Clear line (Ctrl+U)
+            specialKey = '\x15'; // Ctrl+U
+            break;
+          case 'ArrowLeft': // Cmd+Left -> Beginning of line (Ctrl+A)
+            specialKey = '\x01'; // Ctrl+A
+            break;
+          case 'ArrowRight': // Cmd+Right -> End of line (Ctrl+E)
+            specialKey = '\x05'; // Ctrl+E
+            break;
+          case 'a': // Cmd+A -> Select all (Ctrl+A)
+            if (domEvent.shiftKey) return; // Let browser handle Cmd+Shift+A
+            specialKey = '\x01'; // Ctrl+A
+            break;
+        }
+        
+        if (specialKey) {
+          domEvent.preventDefault();
+          invoke('terminal_input', { terminalId, data: specialKey }).catch(console.error);
+        }
+      }
+    });
+
+    // Create or connect to terminal
     if (!providedTerminalId) {
       createBackendTerminal();
     } else {
+      setTerminalId(providedTerminalId);
+      setupEventListeners(providedTerminalId);
       setIsConnected(true);
-      startReadingFromTerminal();
     }
 
     // Handle window resize
     const handleResize = () => {
       if (fitAddon && terminalId) {
-        fitAddon.fit();
-        const { cols, rows } = xterm;
-        invoke('resize_terminal', { terminalId, cols, rows }).catch(console.error);
+        try {
+          fitAddon.fit();
+          const { cols, rows } = xterm;
+          invoke('resize_terminal', { terminalId, cols, rows }).catch(console.error);
+        } catch (error) {
+          console.warn('Failed to resize terminal:', error);
+        }
       }
     };
 
     window.addEventListener('resize', handleResize);
 
     return () => {
-      window.removeEventListener('resize', handleResize);
-      if (terminalId) {
-        invoke('close_terminal', { terminalId }).catch(console.error);
+      // Clean up event listeners
+      if (unlistenOutputRef.current) {
+        unlistenOutputRef.current();
+        unlistenOutputRef.current = null;
       }
+      if (unlistenClosedRef.current) {
+        unlistenClosedRef.current();
+        unlistenClosedRef.current = null;
+      }
+      
+      window.removeEventListener('resize', handleResize);
+      
+      // Cleanup XTerm
       xterm.dispose();
     };
-  }, []);
+  }, []); // Empty dependency array - only run once on mount
 
   const createBackendTerminal = async () => {
     try {
-      const terminal = await invoke('create_terminal', {
+      const backendTerminalId = await invoke('create_terminal', {
         request: {
-          worktreeId,
+          worktree_id: worktreeId,
           name,
-          workingDirectory
+          working_directory: workingDirectory
         }
-      }) as { id: string };
+      }) as string;
       
-      setTerminalId(terminal.id);
+      setTerminalId(backendTerminalId);
+      await setupEventListeners(backendTerminalId);
       setIsConnected(true);
-      startReadingFromTerminal(terminal.id);
+      
     } catch (error) {
-      console.error('Failed to create terminal:', error);
+      console.error('Failed to create terminal session:', error);
       if (xtermRef.current) {
         xtermRef.current.write('\r\n\x1b[31mFailed to create terminal session\x1b[0m\r\n');
       }
     }
   };
 
-  const startReadingFromTerminal = (id?: string) => {
-    const currentTerminalId = id || terminalId;
-    if (!currentTerminalId || !xtermRef.current) return;
-
-    // Set up periodic reading from terminal
-    const readInterval = setInterval(async () => {
-      try {
-        const output = await invoke('read_from_terminal', { terminalId: currentTerminalId }) as string;
-        if (output && xtermRef.current) {
+  const setupEventListeners = async (id: string) => {
+    try {
+      // Listen for terminal output - REAL-TIME STREAMING!
+      unlistenOutputRef.current = await listen(`terminal-output-${id}`, (event) => {
+        const output = event.payload as string;
+        if (xtermRef.current) {
           xtermRef.current.write(output);
         }
-      } catch (error) {
-        // Terminal might be closed or not ready, that's ok
-        if (error && typeof error === 'string' && error.includes('Terminal not found')) {
-          clearInterval(readInterval);
-        }
-      }
-    }, 50); // Read every 50ms
+      });
 
-    // Clean up interval when component unmounts
-    return () => clearInterval(readInterval);
+      // Listen for terminal closure
+      unlistenClosedRef.current = await listen(`terminal-closed-${id}`, () => {
+        setIsConnected(false);
+        if (xtermRef.current) {
+          xtermRef.current.write('\r\n\x1b[33mTerminal session ended\x1b[0m\r\n');
+        }
+      });
+      
+    } catch (error) {
+      console.error('Failed to setup event listeners:', error);
+    }
   };
 
   const handleClose = () => {
-    if (terminalId) {
-      invoke('close_terminal', { terminalId }).catch(console.error);
+    // Clean up event listeners first
+    if (unlistenOutputRef.current) {
+      unlistenOutputRef.current();
+      unlistenOutputRef.current = null;
     }
+    if (unlistenClosedRef.current) {
+      unlistenClosedRef.current();
+      unlistenClosedRef.current = null;
+    }
+    
+    // Backend terminal cleanup is handled by WorktreeView
     onClose?.();
   };
 
@@ -174,7 +244,11 @@ export const Terminal: React.FC<TerminalProps> = ({
 
   const handleFit = () => {
     if (fitAddonRef.current) {
-      fitAddonRef.current.fit();
+      try {
+        fitAddonRef.current.fit();
+      } catch (error) {
+        console.warn('Failed to fit terminal manually:', error);
+      }
     }
   };
 
@@ -189,6 +263,9 @@ export const Terminal: React.FC<TerminalProps> = ({
           <span className="text-sm text-gray-300 ml-2">{name}</span>
           {!isConnected && (
             <span className="text-xs text-yellow-500 ml-2">Connecting...</span>
+          )}
+          {isConnected && (
+            <span className="text-xs text-green-500 ml-2">🔗 Streaming</span>
           )}
         </div>
         <div className="flex items-center gap-1">
@@ -224,5 +301,3 @@ export const Terminal: React.FC<TerminalProps> = ({
 };
 
 export default Terminal;
-
-

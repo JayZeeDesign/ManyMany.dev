@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { GitBranch, Plus, X } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 

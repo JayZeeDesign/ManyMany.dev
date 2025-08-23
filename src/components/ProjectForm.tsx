@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { open } from '@tauri-apps/plugin-dialog';
-import { FolderOpen, FileCode2, GitBranch, Save, X, Trash2, Plus, FolderGit2, ExternalLink, ChevronRight } from 'lucide-react';
+import { FolderOpen, FileCode2, GitBranch, X, Trash2, Plus, FolderGit2, ExternalLink, ChevronRight } from 'lucide-react';
 import { useProjectStore } from '@/stores/projectStore';
 import { CreateWorktreeDialog } from './CreateWorktreeDialog';
 import { invoke } from '@tauri-apps/api/core';

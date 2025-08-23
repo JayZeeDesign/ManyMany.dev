@@ -1,10 +1,9 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-use std::io::Write;
-use portable_pty::{CommandBuilder, PtySize, native_pty_system};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use uuid::Uuid;
+use tauri::{AppHandle, State};
+use std::sync::Mutex;
+
+use crate::terminal::{TerminalManager};
+use crate::terminal::task::CreateTerminalRequest;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Terminal {
@@ -16,138 +15,117 @@ pub struct Terminal {
     pub is_active: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct CreateTerminalRequest {
-    pub worktree_id: String,
-    pub name: String,
-    pub working_directory: String,
-}
-
-// Global terminal manager
-lazy_static::lazy_static! {
-    static ref TERMINALS: Arc<Mutex<HashMap<String, Arc<Mutex<Box<dyn portable_pty::MasterPty + Send>>>>>> = Arc::new(Mutex::new(HashMap::new()));
-}
-
+/// Create a new terminal with real-time streaming
 #[tauri::command]
-pub async fn create_terminal(request: CreateTerminalRequest) -> Result<Terminal, String> {
-    let terminal_id = Uuid::new_v4().to_string();
-    
-    // Create PTY system
-    let pty_system = native_pty_system();
-    
-    // Determine shell command based on OS
-    let mut cmd = if cfg!(windows) {
-        CommandBuilder::new("cmd.exe")
-    } else {
-        CommandBuilder::new("bash")
+pub async fn create_terminal(
+    request: CreateTerminalRequest,
+    app: AppHandle,
+    state: State<'_, Mutex<TerminalManager>>,
+) -> Result<String, String> {
+    let terminal_id = {
+        let mut manager = state.lock().unwrap();
+        manager.create_terminal(request, app)?
     };
     
-    // Set working directory
-    cmd.cwd(&request.working_directory);
+    Ok(terminal_id)
+}
+
+/// Send input to a terminal (replaces the old write_to_terminal)
+#[tauri::command]
+pub async fn terminal_input(
+    terminal_id: String,
+    data: String,
+    state: State<'_, Mutex<TerminalManager>>,
+) -> Result<(), String> {
+    let manager = state.lock().unwrap();
+    manager.send_input(&terminal_id, &data)?;
     
-    // Create PTY pair
-    let pty_pair = pty_system
-        .openpty(PtySize {
-            rows: 24,
-            cols: 80,
-            pixel_width: 0,
-            pixel_height: 0,
-        })
-        .map_err(|e| format!("Failed to create PTY: {}", e))?;
-    
-    // Spawn the shell process
-    let _child = pty_pair.slave
-        .spawn_command(cmd)
-        .map_err(|e| format!("Failed to spawn shell: {}", e))?;
-    
-    // Store the master PTY for later use
+    Ok(())
+}
+
+/// Close a terminal and clean up resources
+#[tauri::command]
+pub async fn close_terminal(
+    terminal_id: String,
+    state: State<'_, Mutex<TerminalManager>>,
+) -> Result<(), String> {
     {
-        let mut terminals = TERMINALS.lock().unwrap();
-        terminals.insert(terminal_id.clone(), Arc::new(Mutex::new(pty_pair.master)));
+        let mut manager = state.lock().unwrap();
+        manager.close_terminal(&terminal_id)?;
     }
     
-    let terminal = Terminal {
-        id: terminal_id,
-        worktree_id: request.worktree_id,
-        name: request.name,
-        terminal_type: "shell".to_string(),
-        working_directory: request.working_directory,
-        is_active: true,
+    Ok(())
+}
+
+/// List all active terminals
+#[tauri::command]
+pub async fn list_terminals(
+    state: State<'_, Mutex<TerminalManager>>,
+) -> Result<Vec<String>, String> {
+    let manager = state.lock().unwrap();
+    let terminal_ids = manager.list_terminals();
+    
+    Ok(terminal_ids)
+}
+
+/// Resize a terminal (for compatibility - may implement later)
+#[tauri::command]
+pub async fn resize_terminal(
+    terminal_id: String, 
+    cols: u16, 
+    rows: u16,
+    _state: State<'_, Mutex<TerminalManager>>,
+) -> Result<(), String> {
+    // TODO: Implement terminal resizing in the streaming architecture
+    // For now, just return success to avoid breaking existing code
+    Ok(())
+}
+
+/// Get terminal info (new command for debugging/info)
+#[tauri::command]
+pub async fn get_terminal_info(
+    terminal_id: String,
+    state: State<'_, Mutex<TerminalManager>>,
+) -> Result<Option<Terminal>, String> {
+    let manager = state.lock().unwrap();
+    
+    if let Some(task) = manager.get_terminal(terminal_id.as_str()) {
+        let terminal_info = Terminal {
+            id: task.id.clone(),
+            worktree_id: task.worktree_id.clone(),
+            name: task.name.clone(),
+            terminal_type: "shell".to_string(),
+            working_directory: task.working_directory.clone(),
+            is_active: task.is_active,
+        };
+        
+        Ok(Some(terminal_info))
+    } else {
+        Ok(None)
+    }
+}
+
+/// Clean up completed tasks (maintenance command)
+#[tauri::command]
+pub async fn cleanup_terminals(
+    state: State<'_, Mutex<TerminalManager>>,
+) -> Result<usize, String> {
+    let (count_before, count_after) = {
+        let mut manager = state.lock().unwrap();
+        let count_before = manager.terminal_count();
+        
+        manager.cleanup_completed_tasks();
+        
+        let count_after = manager.terminal_count();
+        (count_before, count_after)
     };
     
-    Ok(terminal)
+    let cleaned = count_before - count_after;
+    
+    Ok(cleaned)
 }
 
-#[tauri::command]
-pub async fn write_to_terminal(terminal_id: String, data: String) -> Result<(), String> {
-    let terminals = TERMINALS.lock().unwrap();
-    if let Some(pty) = terminals.get(&terminal_id) {
-        let mut pty_guard = pty.lock().unwrap();
-        let mut writer = pty_guard.take_writer()
-            .map_err(|e| format!("Failed to get writer: {}", e))?;
-        writer.write_all(data.as_bytes())
-            .map_err(|e| format!("Failed to write to terminal: {}", e))?;
-        Ok(())
-    } else {
-        Err("Terminal not found".to_string())
-    }
-}
-
-#[tauri::command]
-pub async fn read_from_terminal(terminal_id: String) -> Result<String, String> {
-    let terminals = TERMINALS.lock().unwrap();
-    if let Some(pty) = terminals.get(&terminal_id) {
-        let mut pty_guard = pty.lock().unwrap();
-        let mut reader = pty_guard.try_clone_reader()
-            .map_err(|e| format!("Failed to get reader: {}", e))?;
-        let mut buffer = [0u8; 1024];
-        use std::io::Read;
-        match reader.read(&mut buffer) {
-            Ok(n) => {
-                let output = String::from_utf8_lossy(&buffer[..n]).to_string();
-                Ok(output)
-            }
-            Err(e) => Err(format!("Failed to read from terminal: {}", e))
-        }
-    } else {
-        Err("Terminal not found".to_string())
-    }
-}
-
-#[tauri::command]
-pub async fn resize_terminal(terminal_id: String, cols: u16, rows: u16) -> Result<(), String> {
-    let terminals = TERMINALS.lock().unwrap();
-    if let Some(pty) = terminals.get(&terminal_id) {
-        let pty_guard = pty.lock().unwrap();
-        pty_guard.resize(PtySize {
-            rows,
-            cols,
-            pixel_width: 0,
-            pixel_height: 0,
-        }).map_err(|e| format!("Failed to resize terminal: {}", e))?;
-        Ok(())
-    } else {
-        Err("Terminal not found".to_string())
-    }
-}
-
-#[tauri::command]
-pub async fn close_terminal(terminal_id: String) -> Result<(), String> {
-    let mut terminals = TERMINALS.lock().unwrap();
-    if terminals.remove(&terminal_id).is_some() {
-        Ok(())
-    } else {
-        Err("Terminal not found".to_string())
-    }
-}
-
-#[tauri::command]
-pub async fn list_terminals() -> Result<Vec<Terminal>, String> {
-    // For now, return empty list. In a full implementation, you'd track terminals
-    // in a more persistent way
-    Ok(vec![])
-}
-
+/// Open a file in an external editor
 #[tauri::command]
 pub async fn open_editor(path: String, editor: String) -> Result<(), String> {
     use std::process::Command;
@@ -164,4 +142,29 @@ pub async fn open_editor(path: String, editor: String) -> Result<(), String> {
         .map_err(|e| format!("Failed to open editor: {}", e))?;
     
     Ok(())
+}
+
+// ============================================================================
+// DEPRECATED COMMANDS - Keep for compatibility but log warnings
+// ============================================================================
+
+/// DEPRECATED: Use terminal_input instead
+#[tauri::command]
+pub async fn write_to_terminal(
+    terminal_id: String,
+    data: String,
+    state: State<'_, Mutex<TerminalManager>>,
+) -> Result<(), String> {
+    // Forward to new command
+    terminal_input(terminal_id, data, state).await
+}
+
+/// DEPRECATED: Polling is no longer needed with streaming
+#[tauri::command]
+pub async fn read_from_terminal(
+    terminal_id: String,
+    _state: State<'_, Mutex<TerminalManager>>,
+) -> Result<String, String> {
+    // Return empty string since output is now streamed via events
+    Ok(String::new())
 }

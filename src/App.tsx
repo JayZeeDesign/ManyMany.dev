@@ -1,11 +1,8 @@
-import React from 'react';
 import { Sidebar } from './components/Sidebar';
 import { ProjectForm } from './components/ProjectForm';
 import { WorktreeView } from './components/WorktreeView';
 import { useProjectStore } from './stores/projectStore';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { GitBranch, Terminal, FolderGit2 } from 'lucide-react';
+import { FolderGit2 } from 'lucide-react';
 
 function App() {
   const { selectedProjectId, selectedWorktreeId, getSelectedProject, getSelectedWorktree } = useProjectStore();

@@ -1,12 +1,16 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { ArrowLeft, Plus, X, GitBranch, FolderOpen, Terminal as TerminalIcon } from 'lucide-react';
 import { useProjectStore } from '@/stores/projectStore';
 import { Terminal } from './Terminal';
+
+// Clean modern terminal interface - no global state needed
 
 interface TerminalSession {
   id: string;
   name: string;
   isActive: boolean;
+  backendTerminalId?: string; // Backend terminal ID from Tauri
 }
 
 export function WorktreeView() {
@@ -21,6 +25,9 @@ export function WorktreeView() {
   };
   const [terminals, setTerminals] = useState<TerminalSession[]>([]);
   const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null);
+  const [isCreatingTerminal, setIsCreatingTerminal] = useState(false);
+
+  // Clean state management without debug logging
 
   if (!project || !worktree) {
     return (
@@ -36,17 +43,57 @@ export function WorktreeView() {
     );
   }
 
-  const handleCreateTerminal = () => {
-    const newTerminal: TerminalSession = {
-      id: `terminal-${Date.now()}`,
-      name: `Terminal ${terminals.length + 1}`,
-      isActive: true
-    };
-    setTerminals([...terminals, newTerminal]);
-    setActiveTerminalId(newTerminal.id);
+  const handleCreateTerminal = async () => {
+    if (isCreatingTerminal) return;
+    
+    const terminalName = `Terminal ${terminals.length + 1}`;
+    const frontendId = `terminal-${Date.now()}`;
+    
+    setIsCreatingTerminal(true);
+    
+    try {
+      const backendTerminalId = await invoke('create_terminal', {
+        request: {
+          worktree_id: worktree.id,
+          name: terminalName,
+          working_directory: worktree.path
+        }
+      }) as string;
+      
+      // Create frontend terminal session with backend ID
+      const newTerminal: TerminalSession = {
+        id: frontendId,
+        name: terminalName,
+        isActive: true,
+        backendTerminalId: backendTerminalId
+      };
+      
+      setTerminals([...terminals, newTerminal]);
+      setActiveTerminalId(newTerminal.id);
+      
+    } catch (error) {
+      console.error('Failed to create terminal:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      alert(`Failed to create terminal: ${errorMessage}`);
+    } finally {
+      setIsCreatingTerminal(false);
+    }
   };
 
-  const handleCloseTerminal = (terminalId: string) => {
+  const handleCloseTerminal = async (terminalId: string) => {
+    // Find the terminal to close and get its backend ID
+    const terminalToClose = terminals.find(t => t.id === terminalId);
+    
+    if (terminalToClose && terminalToClose.backendTerminalId) {
+      try {
+        await invoke('close_terminal', { terminalId: terminalToClose.backendTerminalId });
+      } catch (error) {
+        console.error('Failed to close backend terminal:', error);
+        // Continue with frontend cleanup even if backend cleanup fails
+      }
+    }
+    
+    // Update frontend state
     setTerminals(terminals.filter(t => t.id !== terminalId));
     if (activeTerminalId === terminalId) {
       const remaining = terminals.filter(t => t.id !== terminalId);
@@ -122,7 +169,7 @@ export function WorktreeView() {
               }}
             >
               <Plus className="w-4 h-4" />
-              New Terminal
+              {isCreatingTerminal ? 'Creating...' : 'New Terminal'}
             </button>
           </div>
         </div>
@@ -154,7 +201,7 @@ export function WorktreeView() {
                   e.currentTarget.style.boxShadow = 'none';
                 }}
               >
-                Create Terminal
+                {isCreatingTerminal ? 'Creating Terminal...' : 'Create Terminal'}
               </button>
             </div>
           </div>
@@ -242,7 +289,7 @@ export function WorktreeView() {
                   }}
                 >
                   <Terminal
-                    terminalId={terminal.id}
+                    terminalId={terminal.backendTerminalId}
                     worktreeId={worktree.id}
                     workingDirectory={worktree.path}
                     name={terminal.name}
