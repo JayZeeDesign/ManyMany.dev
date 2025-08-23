@@ -1,10 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useImperativeHandle } from 'react';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
-import { X, Maximize2, Minimize2 } from 'lucide-react';
 import '@xterm/xterm/css/xterm.css';
 
 interface TerminalProps {
@@ -12,26 +11,31 @@ interface TerminalProps {
   worktreeId: string;
   workingDirectory: string;
   name: string;
-  onClose?: () => void;
 }
 
-export const Terminal: React.FC<TerminalProps> = ({
+export const Terminal = React.forwardRef<{ focus: () => void }, TerminalProps>(({
   terminalId: providedTerminalId,
   worktreeId,
   workingDirectory,
-  name,
-  onClose
-}) => {
+  name
+}, ref) => {
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const [terminalId, setTerminalId] = useState<string | null>(providedTerminalId || null);
-  const [isConnected, setIsConnected] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(false);
   
   // Event listener cleanup functions
   const unlistenOutputRef = useRef<UnlistenFn | null>(null);
   const unlistenClosedRef = useRef<UnlistenFn | null>(null);
+
+  // Expose focus function to parent component
+  useImperativeHandle(ref, () => ({
+    focus: () => {
+      if (xtermRef.current) {
+        xtermRef.current.focus();
+      }
+    }
+  }));
 
   useEffect(() => {
     if (!terminalRef.current) return;
@@ -39,7 +43,7 @@ export const Terminal: React.FC<TerminalProps> = ({
     // Create XTerm instance
     const xterm = new XTerm({
       theme: {
-        background: '#1e1e1e',
+        background: '#000000',
         foreground: '#d4d4d4',
         cursor: '#d4d4d4',
         black: '#000000',
@@ -142,7 +146,6 @@ export const Terminal: React.FC<TerminalProps> = ({
     } else {
       setTerminalId(providedTerminalId);
       setupEventListeners(providedTerminalId);
-      setIsConnected(true);
     }
 
     // Handle window resize
@@ -190,7 +193,15 @@ export const Terminal: React.FC<TerminalProps> = ({
       
       setTerminalId(backendTerminalId);
       await setupEventListeners(backendTerminalId);
-      setIsConnected(true);
+      
+      // Add custom welcome message
+      if (xtermRef.current) {
+        setTimeout(() => {
+          if (xtermRef.current) {
+            xtermRef.current.write('\r\n\x1b[36mCreated by AI Builder Club with ❤️\x1b[0m\r\n');
+          }
+        }, 200);
+      }
       
     } catch (error) {
       console.error('Failed to create terminal session:', error);
@@ -212,7 +223,6 @@ export const Terminal: React.FC<TerminalProps> = ({
 
       // Listen for terminal closure
       unlistenClosedRef.current = await listen(`terminal-closed-${id}`, () => {
-        setIsConnected(false);
         if (xtermRef.current) {
           xtermRef.current.write('\r\n\x1b[33mTerminal session ended\x1b[0m\r\n');
         }
@@ -221,25 +231,6 @@ export const Terminal: React.FC<TerminalProps> = ({
     } catch (error) {
       console.error('Failed to setup event listeners:', error);
     }
-  };
-
-  const handleClose = () => {
-    // Clean up event listeners first
-    if (unlistenOutputRef.current) {
-      unlistenOutputRef.current();
-      unlistenOutputRef.current = null;
-    }
-    if (unlistenClosedRef.current) {
-      unlistenClosedRef.current();
-      unlistenClosedRef.current = null;
-    }
-    
-    // Backend terminal cleanup is handled by WorktreeView
-    onClose?.();
-  };
-
-  const handleMinimize = () => {
-    setIsMinimized(!isMinimized);
   };
 
   const handleFit = () => {
@@ -253,51 +244,16 @@ export const Terminal: React.FC<TerminalProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#1e1e1e] border border-gray-700 rounded-lg overflow-hidden">
-      {/* Terminal Header */}
-      <div className="flex items-center justify-between px-3 py-2 bg-[#2d2d30] border-b border-gray-700">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-red-500"></div>
-          <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-          <div className="w-3 h-3 rounded-full bg-green-500"></div>
-          <span className="text-sm text-gray-300 ml-2">{name}</span>
-          {!isConnected && (
-            <span className="text-xs text-yellow-500 ml-2">Connecting...</span>
-          )}
-          {isConnected && (
-            <span className="text-xs text-green-500 ml-2">🔗 Streaming</span>
-          )}
-        </div>
-        <div className="flex items-center gap-1">
-          <button
-            onClick={handleMinimize}
-            className="p-1 hover:bg-gray-600 rounded text-gray-400 hover:text-white"
-            title={isMinimized ? "Maximize" : "Minimize"}
-          >
-            {isMinimized ? <Maximize2 size={14} /> : <Minimize2 size={14} />}
-          </button>
-          <button
-            onClick={handleClose}
-            className="p-1 hover:bg-red-600 rounded text-gray-400 hover:text-white"
-            title="Close Terminal"
-          >
-            <X size={14} />
-          </button>
-        </div>
-      </div>
-
-      {/* Terminal Content */}
-      {!isMinimized && (
-        <div className="flex-1 p-2">
-          <div
-            ref={terminalRef}
-            className="w-full h-full"
-            onClick={handleFit}
-          />
-        </div>
-      )}
+    <div className="w-full h-full">
+      <div
+        ref={terminalRef}
+        className="w-full h-full"
+        onClick={handleFit}
+      />
     </div>
   );
-};
+});
+
+Terminal.displayName = 'Terminal';
 
 export default Terminal;
