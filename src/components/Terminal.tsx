@@ -99,27 +99,63 @@ export const Terminal = React.forwardRef<{ focus: () => void }, TerminalProps>((
     xtermRef.current = xterm;
     fitAddonRef.current = fitAddon;
 
-    // Fit terminal to container after a short delay
-    setTimeout(() => {
-      try {
-        fitAddon.fit();
-      } catch (error) {
-        console.warn('Failed to fit terminal on initial load:', error);
+    // Fit terminal to container after a short delay with validation
+    const initialFit = () => {
+      if (terminalRef.current && fitAddon) {
+        const rect = terminalRef.current.getBoundingClientRect();
+        console.log(`[Terminal] Initial fit attempt for ${name}: container ${rect.width}x${rect.height}`);
+        
+        if (rect.width > 0 && rect.height > 0) {
+          try {
+            fitAddon.fit();
+            const { cols, rows } = xterm;
+            console.log(`[Terminal] Initial fit successful for ${name}: ${cols}x${rows}`);
+          } catch (error) {
+            console.warn('Failed to fit terminal on initial load:', error);
+          }
+        } else {
+          console.warn(`[Terminal] Delaying initial fit - invalid dimensions: ${rect.width}x${rect.height}`);
+          // Retry with longer delay if container isn't ready
+          setTimeout(initialFit, 200);
+        }
       }
-    }, 100);
+    };
+    
+    setTimeout(initialFit, 100);
 
     // Input handlers will be set up in setupEventListeners when we have a terminal ID
 
     // Don't create backend terminal here - WorktreeView handles that
     // Just wait for the terminal ID to be provided via props
 
-    // Handle window resize
+    // Handle window resize with dimension validation and retry
     const handleResize = () => {
-      if (fitAddon && terminalId) {
+      if (fitAddon && terminalId && terminalRef.current) {
         try {
-          fitAddon.fit();
-          const { cols, rows } = xterm;
-          invoke('resize_terminal', { terminalId, cols, rows }).catch(console.error);
+          // Validate container has valid dimensions before fitting
+          const container = terminalRef.current;
+          const rect = container.getBoundingClientRect();
+          
+          if (rect.width > 0 && rect.height > 0) {
+            fitAddon.fit();
+            const { cols, rows } = xterm;
+            console.log(`[Terminal] Resized terminal ${name}: ${cols}x${rows} (container: ${rect.width}x${rect.height})`);
+            invoke('resize_terminal', { terminalId, cols, rows }).catch(console.error);
+          } else {
+            console.warn(`[Terminal] Skipping fit - invalid container dimensions: ${rect.width}x${rect.height}`);
+            // Retry after a short delay if dimensions are invalid
+            setTimeout(() => {
+              if (fitAddon && terminalRef.current) {
+                const retryRect = terminalRef.current.getBoundingClientRect();
+                if (retryRect.width > 0 && retryRect.height > 0) {
+                  console.log(`[Terminal] Retry fit successful for ${name}`);
+                  fitAddon.fit();
+                  const { cols, rows } = xterm;
+                  invoke('resize_terminal', { terminalId, cols, rows }).catch(console.error);
+                }
+              }
+            }, 100);
+          }
         } catch (error) {
           console.warn('Failed to resize terminal:', error);
         }
@@ -268,9 +304,18 @@ export const Terminal = React.forwardRef<{ focus: () => void }, TerminalProps>((
   };
 
   const handleFit = () => {
-    if (fitAddonRef.current) {
+    if (fitAddonRef.current && terminalRef.current) {
       try {
-        fitAddonRef.current.fit();
+        const rect = terminalRef.current.getBoundingClientRect();
+        console.log(`[Terminal] Manual fit for ${name}: container ${rect.width}x${rect.height}`);
+        
+        if (rect.width > 0 && rect.height > 0) {
+          fitAddonRef.current.fit();
+          const { cols, rows } = xtermRef.current!;
+          console.log(`[Terminal] Manual fit successful for ${name}: ${cols}x${rows}`);
+        } else {
+          console.warn(`[Terminal] Skipping manual fit - invalid dimensions: ${rect.width}x${rect.height}`);
+        }
       } catch (error) {
         console.warn('Failed to fit terminal manually:', error);
       }
@@ -278,10 +323,11 @@ export const Terminal = React.forwardRef<{ focus: () => void }, TerminalProps>((
   };
 
   return (
-    <div className="w-full h-full">
+    <div className="w-full h-full" style={{ minHeight: '200px' }}>
       <div
         ref={terminalRef}
         className="w-full h-full"
+        style={{ minHeight: '200px' }}
         onClick={handleFit}
       />
     </div>

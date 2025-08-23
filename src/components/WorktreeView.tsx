@@ -207,9 +207,9 @@ export function WorktreeView() {
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full">
+    <div className="flex-1 flex flex-col h-full" style={{ minHeight: 0 }}>
       {/* Terminal Area - ALWAYS rendered to prevent unmounting */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col" style={{ minHeight: 0 }}>
         {/* Terminal Tabs - show if current worktree has terminals */}
         {terminals.length > 0 && (
           <div className="h-9 flex items-center gap-1 px-4 border-b overflow-x-auto flex-shrink-0" 
@@ -357,7 +357,11 @@ export function WorktreeView() {
         )}
 
         {/* All Terminals (global list) - ALWAYS rendered to persist across worktree switches */}
-        <div className="flex-1 relative" style={{ backgroundColor: '#000000' }}>
+        <div className="flex-1 relative" style={{ 
+          backgroundColor: '#000000', 
+          minHeight: '200px', // Ensure minimum usable height
+          height: '100%'
+        }}>
           {/* No terminals overlay - shown when current worktree has no terminals */}
           {terminals.length === 0 && (
             <div className="absolute inset-0 flex items-center justify-center z-10" 
@@ -403,6 +407,7 @@ export function WorktreeView() {
                     style={{ 
                       display: shouldShow ? 'block' : 'none',
                       height: '100%',
+                      minHeight: '200px', // Prevent collapse below usable size
                       position: 'absolute',
                       top: 0,
                       left: 0,
