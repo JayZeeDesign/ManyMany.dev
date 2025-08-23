@@ -239,7 +239,7 @@ function App() {
                 ) : (
                   <div className="flex-1 flex items-center justify-center h-full">
                     <div className="text-center">
-                      <h2 className="text-2xl font-light mb-4" style={{ color: 'rgb(var(--color-foreground))' }}>Welcome to Worktree Studio</h2>
+                      <h2 className="text-2xl font-light mb-4" style={{ color: 'rgb(var(--color-foreground))' }}>Welcome to Manymany.dev</h2>
                       <p className="mb-6" style={{ color: 'rgb(var(--color-muted-foreground))' }}>
                         Add a project to get started
                       </p>

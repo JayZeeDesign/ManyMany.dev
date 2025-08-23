@@ -37,7 +37,7 @@ pub async fn create_worktree(
     let home_dir = dirs::home_dir()
         .ok_or_else(|| "Could not find home directory".to_string())?;
     
-    let worktree_base = home_dir.join(".worktrees");
+    let worktree_base = home_dir.join(".manymany");
     let project_name = PathBuf::from(&project_path)
         .file_name()
         .and_then(|n| n.to_str())

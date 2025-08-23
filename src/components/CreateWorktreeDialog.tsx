@@ -251,7 +251,7 @@ export function CreateWorktreeDialog({
             color: 'rgb(var(--color-muted-foreground))'
           }}>
             <strong>Worktree will be created at:</strong><br />
-            ~/.worktrees/{projectName}/{worktreeName || '[worktree-name]'}
+            ~/.manymany/{projectName}/{worktreeName || '[worktree-name]'}
           </div>
         </div>
 
