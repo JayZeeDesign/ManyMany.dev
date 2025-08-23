@@ -516,30 +516,20 @@ export function ProjectForm({ mode }: ProjectFormProps) {
                 </button>
                 
                 <button
-                  className="h-32 flex flex-col items-center justify-center gap-2 rounded-md transition-all border"
+                  className="h-32 flex flex-col items-center justify-center gap-2 rounded-md transition-all border cursor-not-allowed"
                   style={{ 
-                    backgroundColor: 'rgb(var(--color-secondary))',
-                    color: 'rgb(var(--color-secondary-foreground))',
+                    backgroundColor: 'rgb(var(--color-muted) / 0.3)',
+                    color: 'rgb(var(--color-muted-foreground))',
                     borderColor: 'rgb(var(--color-border))',
+                    opacity: 0.6
                   }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = 'rgb(var(--color-primary))';
-                    e.currentTarget.style.color = 'rgb(var(--color-primary-foreground))';
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'rgb(var(--color-secondary))';
-                    e.currentTarget.style.color = 'rgb(var(--color-secondary-foreground))';
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                  onClick={handleSelectWorkspace}
+                  disabled
+                  title="Coming soon"
                 >
                   <FileCode2 className="h-8 w-8" />
                   <span className="text-sm font-medium">Workspace File</span>
                   <span className="text-xs" style={{ color: 'rgb(var(--color-muted-foreground))' }}>
-                    Import from VS Code workspace
+                    Coming soon
                   </span>
                 </button>
               </div>
