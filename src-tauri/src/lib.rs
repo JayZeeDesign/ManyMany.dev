@@ -3,7 +3,7 @@ mod git_commands;
 mod terminal;
 
 use commands::{
-    project::{add_project, list_projects, remove_project, get_default_branch, parse_workspace_file},
+    project::{add_project, list_projects, remove_project, get_default_branch, parse_workspace_file, open_in_app},
     worktree::{create_worktree, list_worktrees, remove_worktree, get_available_branches},
     git::{get_git_status, git_commit, git_stage_file, git_unstage_file},
     terminal::{open_editor, create_terminal, write_to_terminal, read_from_terminal, resize_terminal, close_terminal, list_terminals, terminal_input, get_terminal_info, cleanup_terminals},
@@ -46,6 +46,7 @@ pub fn run() {
             is_git_repository,
             get_default_branch,
             parse_workspace_file,
+            open_in_app,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::fs;
+use std::process::Command;
 use uuid::Uuid;
 use chrono::Utc;
 
@@ -189,4 +190,38 @@ pub async fn parse_workspace_file(workspace_path: String) -> Result<Vec<Workspac
     }
     
     Ok(repos)
+}
+
+#[tauri::command]
+pub async fn open_in_app(path: String, app: String) -> Result<(), String> {
+    let command_result = match app.as_str() {
+        "cursor" => Command::new("cursor").arg(&path).spawn(),
+        "vscode" => Command::new("code").arg(&path).spawn(),
+        "finder" => {
+            #[cfg(target_os = "macos")]
+            {
+                Command::new("open").arg(&path).spawn()
+            }
+            #[cfg(target_os = "windows")]
+            {
+                Command::new("explorer").arg(&path).spawn()
+            }
+            #[cfg(target_os = "linux")]
+            {
+                Command::new("xdg-open").arg(&path).spawn()
+            }
+        },
+        _ => return Err(format!("Unsupported app: {}", app))
+    };
+        
+    match command_result {
+        Ok(_) => {
+            println!("Successfully opened {} in {}", path, app);
+            Ok(())
+        },
+        Err(e) => {
+            eprintln!("Failed to open {} in {}: {}", path, app, e);
+            Err(format!("Failed to open in {}: {}", app, e))
+        }
+    }
 }

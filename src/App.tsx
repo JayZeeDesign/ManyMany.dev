@@ -1,18 +1,46 @@
-// No more useEffect or invoke needed for terminal restoration
+import { invoke } from '@tauri-apps/api/core';
+import { useState, useRef, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { ProjectForm } from './components/ProjectForm';
 import { WorktreeView } from './components/WorktreeView';
 import { useProjectStore } from './stores/projectStore';
-import { FolderGit2, GitBranch, ChevronRight, Plus } from 'lucide-react';
+import { FolderGit2, GitBranch, ChevronRight, ExternalLink, ChevronDown, Folder, Code } from 'lucide-react';
 
 function App() {
   const { selectedProjectId, selectedWorktreeId, getSelectedProject, getSelectedWorktree, selectWorktree } = useProjectStore();
-  // Terminal store no longer needed for restoration
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   
   const selectedProject = getSelectedProject();
   const selectedWorktree = getSelectedWorktree();
   
-
+  // Handle clicking outside dropdown to close it
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    
+    if (isDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isDropdownOpen]);
+  
+  // Handle opening in different applications
+  const handleOpenIn = async (app: 'cursor' | 'vscode' | 'finder') => {
+    if (!selectedWorktree) return;
+    
+    setIsDropdownOpen(false);
+    
+    try {
+      console.log(`[App] Opening ${selectedWorktree.path} in ${app}`);
+      await invoke('open_in_app', { path: selectedWorktree.path, app });
+    } catch (error) {
+      console.error(`Failed to open in ${app}:`, error);
+    }
+  };
   
   // Helper function to extract worktree name from path
   const getWorktreeName = (worktreePath: string) => {
@@ -64,29 +92,94 @@ function App() {
           {/* Action Buttons */}
           {selectedWorktree && (
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => {
-                  // This will be handled by WorktreeView - we'll need to pass this down
-                  const event = new CustomEvent('createTerminal');
-                  document.dispatchEvent(event);
-                }}
-                className="px-3 py-1.5 text-sm font-medium rounded-md transition-all flex items-center gap-2"
-                style={{ 
-                  backgroundColor: 'rgb(var(--color-primary))',
-                  color: 'rgb(var(--color-primary-foreground))'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-1px)';
-                  e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = 'none';
-                }}
-              >
-                <Plus className="w-4 h-4" />
-                New Terminal
-              </button>
+              <div className="relative" ref={dropdownRef}>
+                <button
+                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md transition-all"
+                  style={{ 
+                    backgroundColor: isDropdownOpen ? 'rgb(var(--color-muted))' : 'transparent',
+                    color: 'rgb(var(--color-muted-foreground))',
+                    border: '1px solid rgb(var(--color-border))'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isDropdownOpen) {
+                      e.currentTarget.style.backgroundColor = 'rgb(var(--color-muted))';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isDropdownOpen) {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                    }
+                  }}
+                >
+                  <Folder className="w-4 h-4" />
+                  <span>Open</span>
+                  <ChevronDown className="w-3 h-3" />
+                </button>
+                
+                {isDropdownOpen && (
+                  <div 
+                    className="absolute right-0 top-full mt-1 w-48 rounded-md shadow-lg z-50"
+                    style={{ 
+                      backgroundColor: 'rgb(var(--color-popover))',
+                      border: '1px solid rgb(var(--color-border))'
+                    }}
+                  >
+                    <div className="py-1">
+                      <button
+                        onClick={() => handleOpenIn('finder')}
+                        className="w-full px-3 py-2 text-sm text-left flex items-center gap-3 transition-colors"
+                        style={{ color: 'rgb(var(--color-popover-foreground))' }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = 'rgb(var(--color-accent))';
+                          e.currentTarget.style.color = 'rgb(var(--color-accent-foreground))';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'transparent';
+                          e.currentTarget.style.color = 'rgb(var(--color-popover-foreground))';
+                        }}
+                      >
+                        <Folder className="w-4 h-4" />
+                        Finder
+                      </button>
+                      
+                      <button
+                        onClick={() => handleOpenIn('cursor')}
+                        className="w-full px-3 py-2 text-sm text-left flex items-center gap-3 transition-colors"
+                        style={{ color: 'rgb(var(--color-popover-foreground))' }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = 'rgb(var(--color-accent))';
+                          e.currentTarget.style.color = 'rgb(var(--color-accent-foreground))';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'transparent';
+                          e.currentTarget.style.color = 'rgb(var(--color-popover-foreground))';
+                        }}
+                      >
+                        <Code className="w-4 h-4" />
+                        Cursor
+                      </button>
+                      
+                      <button
+                        onClick={() => handleOpenIn('vscode')}
+                        className="w-full px-3 py-2 text-sm text-left flex items-center gap-3 transition-colors"
+                        style={{ color: 'rgb(var(--color-popover-foreground))' }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = 'rgb(var(--color-accent))';
+                          e.currentTarget.style.color = 'rgb(var(--color-accent-foreground))';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'transparent';
+                          e.currentTarget.style.color = 'rgb(var(--color-popover-foreground))';
+                        }}
+                      >
+                        <Code className="w-4 h-4" />
+                        VS Code
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
