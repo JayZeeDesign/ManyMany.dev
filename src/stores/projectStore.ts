@@ -35,6 +35,7 @@ interface ProjectStore {
   selectedProjectId: string | null;
   selectedWorktreeId: string | null;
   showCreateWorktreeDialog: boolean;
+  showFileChangesPanel: boolean;
   addProject: (project: Omit<Project, 'id' | 'createdAt'>) => void;
   removeProject: (id: string) => void;
   selectProject: (id: string | null) => void;
@@ -43,6 +44,8 @@ interface ProjectStore {
   getSelectedProject: () => Project | undefined;
   getSelectedWorktree: () => Worktree | undefined;
   setShowCreateWorktreeDialog: (show: boolean) => void;
+  setShowFileChangesPanel: (show: boolean) => void;
+  toggleFileChangesPanel: () => void;
   // Project-specific terminal settings
   getProjectTerminalSettings: (projectId: string) => DefaultTerminalConfig[];
   updateProjectTerminalSettings: (projectId: string, terminals: DefaultTerminalConfig[]) => void;
@@ -59,6 +62,7 @@ export const useProjectStore = create<ProjectStore>()(
       selectedProjectId: null,
       selectedWorktreeId: null,
       showCreateWorktreeDialog: false,
+      showFileChangesPanel: false,
       
       addProject: (projectData: any) => {
         const project: Project = {
@@ -123,6 +127,14 @@ export const useProjectStore = create<ProjectStore>()(
 
       setShowCreateWorktreeDialog: (show: boolean) => {
         set({ showCreateWorktreeDialog: show });
+      },
+
+      setShowFileChangesPanel: (show: boolean) => {
+        set({ showFileChangesPanel: show });
+      },
+
+      toggleFileChangesPanel: () => {
+        set((state) => ({ showFileChangesPanel: !state.showFileChangesPanel }));
       },
 
       // Project-specific terminal settings methods

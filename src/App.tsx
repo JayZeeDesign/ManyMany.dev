@@ -3,11 +3,12 @@ import { useState, useRef, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { ProjectForm } from './components/ProjectForm';
 import { WorktreeView } from './components/WorktreeView';
+import { FileChangesPanel } from './components/FileChangesPanel';
 import { useProjectStore } from './stores/projectStore';
-import { FolderGit2, GitBranch, ChevronRight, ExternalLink, ChevronDown, Folder, Code } from 'lucide-react';
+import { FolderGit2, GitBranch, ChevronRight, ExternalLink, ChevronDown, Folder, Code, FileText } from 'lucide-react';
 
 function App() {
-  const { selectedProjectId, selectedWorktreeId, getSelectedProject, getSelectedWorktree, selectWorktree } = useProjectStore();
+  const { selectedProjectId, selectedWorktreeId, getSelectedProject, getSelectedWorktree, selectWorktree, showFileChangesPanel, toggleFileChangesPanel } = useProjectStore();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   
@@ -92,6 +93,29 @@ function App() {
           {/* Action Buttons */}
           {selectedWorktree && (
             <div className="flex items-center gap-2">
+              <button
+                onClick={toggleFileChangesPanel}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md transition-all"
+                style={{ 
+                  backgroundColor: showFileChangesPanel ? 'rgb(var(--color-primary))' : 'transparent',
+                  color: showFileChangesPanel ? 'rgb(var(--color-primary-foreground))' : 'rgb(var(--color-muted-foreground))',
+                  border: '1px solid rgb(var(--color-border))'
+                }}
+                onMouseEnter={(e) => {
+                  if (!showFileChangesPanel) {
+                    e.currentTarget.style.backgroundColor = 'rgb(var(--color-muted))';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!showFileChangesPanel) {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                  }
+                }}
+                title="File changes"
+              >
+                <FileText className="w-4 h-4" />
+                <span>File changes</span>
+              </button>
               <div className="relative" ref={dropdownRef}>
                 <button
                   onClick={() => setIsDropdownOpen(!isDropdownOpen)}
@@ -186,42 +210,48 @@ function App() {
 
         {/* Content Area */}
         <div className="flex-1 flex overflow-hidden" style={{ position: 'relative' }}>
-          {/* WorktreeView - ALWAYS rendered to preserve terminal sessions */}
-          <WorktreeView />
+          {/* Main Content - WorktreeView and other content */}
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {/* WorktreeView - ALWAYS rendered to preserve terminal sessions */}
+            <WorktreeView />
 
-          {/* Other Content Areas - overlay when WorktreeView is not active */}
-          {!(selectedWorktreeId && selectedWorktree) && (
-            <div
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: 'rgb(var(--color-background))',
-                zIndex: 10
-              }}
-            >
-              {selectedProjectId === null ? (
-                <div className="flex-1 overflow-y-auto h-full">
-                  <ProjectForm mode="create" />
-                </div>
-              ) : selectedProject ? (
-                <div className="flex-1 overflow-y-auto h-full">
-                  <ProjectForm mode="edit" />
-                </div>
-              ) : (
-                <div className="flex-1 flex items-center justify-center h-full">
-                  <div className="text-center">
-                    <h2 className="text-2xl font-light mb-4" style={{ color: 'rgb(var(--color-foreground))' }}>Welcome to Worktree Studio</h2>
-                    <p className="mb-6" style={{ color: 'rgb(var(--color-muted-foreground))' }}>
-                      Add a project to get started
-                    </p>
+            {/* Other Content Areas - overlay when WorktreeView is not active */}
+            {!(selectedWorktreeId && selectedWorktree) && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  backgroundColor: 'rgb(var(--color-background))',
+                  zIndex: 10
+                }}
+              >
+                {selectedProjectId === null ? (
+                  <div className="flex-1 overflow-y-auto h-full">
+                    <ProjectForm mode="create" />
                   </div>
-                </div>
-              )}
-            </div>
-          )}
+                ) : selectedProject ? (
+                  <div className="flex-1 overflow-y-auto h-full">
+                    <ProjectForm mode="edit" />
+                  </div>
+                ) : (
+                  <div className="flex-1 flex items-center justify-center h-full">
+                    <div className="text-center">
+                      <h2 className="text-2xl font-light mb-4" style={{ color: 'rgb(var(--color-foreground))' }}>Welcome to Worktree Studio</h2>
+                      <p className="mb-6" style={{ color: 'rgb(var(--color-muted-foreground))' }}>
+                        Add a project to get started
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* File Changes Panel */}
+          <FileChangesPanel />
         </div>
       </div>
     </div>
