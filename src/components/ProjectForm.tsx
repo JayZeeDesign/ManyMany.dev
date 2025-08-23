@@ -56,8 +56,9 @@ export function ProjectForm({ mode }: ProjectFormProps) {
       setDefaultBranch(selectedProject.defaultBranch || 'main');
       setProjectType(selectedProject.type);
       
-      // Load worktrees for edit mode - only once when project changes
-      if (selectedProject.type === 'repository' && worktrees.length === 0) {
+      // Reset worktrees state and load fresh data for repository projects
+      setWorktrees([]);
+      if (selectedProject.type === 'repository') {
         loadWorktrees();
       }
     } else if (mode === 'create') {
@@ -67,6 +68,7 @@ export function ProjectForm({ mode }: ProjectFormProps) {
       setDefaultBranch('main');
       setProjectType('repository');
       setCurrentStep(1);
+      setWorktrees([]);
       setPreviewTerminals([{
         id: 'default-1',
         name: 'Claude code',
@@ -260,6 +262,40 @@ export function ProjectForm({ mode }: ProjectFormProps) {
         
         // Apply preview terminal settings to the newly created project
         updateProjectTerminalSettings(createdProject.id, previewTerminals);
+        
+        // Load worktrees for the newly created project (to discover default worktree)
+        if (createdProject.project_type === 'repository') {
+          try {
+            const projectWorktrees = await invoke<any[]>('list_worktrees', {
+              projectPath: createdProject.path
+            });
+            
+            // Format and update project with discovered worktrees
+            const formattedWorktrees = projectWorktrees.map(wt => ({
+              id: wt.id,
+              branch: wt.branch,
+              path: wt.path,
+              createdAt: new Date(wt.created_at)
+            }));
+            
+            updateProject(createdProject.id, {
+              worktrees: formattedWorktrees
+            });
+            
+            // Auto-select the project and its first worktree (default repository)
+            selectProject(createdProject.id);
+            if (formattedWorktrees.length > 0) {
+              selectWorktree(formattedWorktrees[0].id);
+            }
+          } catch (error) {
+            console.error('Failed to load worktrees for new project:', error);
+            // Still select the project even if worktree loading fails
+            selectProject(createdProject.id);
+          }
+        } else {
+          // For workspace projects, just select the project
+          selectProject(createdProject.id);
+        }
         
         // Reset form
         setProjectName('');
