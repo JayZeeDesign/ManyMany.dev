@@ -12,13 +12,15 @@ interface TerminalProps {
   workingDirectory: string;
   name: string;
   isRestored?: boolean;
+  autoCommand?: string;
 }
 
 export const Terminal = React.forwardRef<{ focus: () => void }, TerminalProps>(({
   terminalId: providedTerminalId,
   workingDirectory,
   name,
-  isRestored
+  isRestored,
+  autoCommand
 }, ref) => {
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
@@ -245,6 +247,20 @@ export const Terminal = React.forwardRef<{ focus: () => void }, TerminalProps>((
             }
           }
         }, 200);
+        
+        // Execute auto command if provided
+        if (autoCommand && autoCommand.trim() && !isRestored) {
+          setTimeout(async () => {
+            try {
+              await invoke('terminal_input', { 
+                terminalId: id, 
+                data: autoCommand.trim() + '\n' 
+              });
+            } catch (error) {
+              console.error(`Failed to execute auto command "${autoCommand}":`, error);
+            }
+          }, 800); // Wait a bit longer for terminal to be fully ready
+        }
       }
     } catch (error) {
       console.error(`Failed to setup event listeners:`, error);

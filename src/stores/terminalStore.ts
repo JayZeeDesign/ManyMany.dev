@@ -9,6 +9,7 @@ export interface TerminalSession {
   lastActiveTime: number;
   isActive: boolean;
   backendTerminalId?: string; // Only set while terminal is running
+  autoCommand?: string; // Command to auto-execute when terminal is created
 }
 
 interface TerminalStore {

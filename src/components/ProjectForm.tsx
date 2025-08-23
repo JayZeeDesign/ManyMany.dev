@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { open } from '@tauri-apps/plugin-dialog';
-import { FolderOpen, FileCode2, GitBranch, X, Trash2, Plus, FolderGit2, ExternalLink, ChevronRight } from 'lucide-react';
+import { FolderOpen, FileCode2, GitBranch, X, Trash2, Plus, FolderGit2, ExternalLink, ChevronRight, Settings } from 'lucide-react';
 import { useProjectStore } from '@/stores/projectStore';
 import { CreateWorktreeDialog } from './CreateWorktreeDialog';
+import { TerminalSettings } from './TerminalSettings';
 import { invoke } from '@tauri-apps/api/core';
 
 interface ProjectFormProps {
@@ -25,6 +26,7 @@ export function ProjectForm({ mode }: ProjectFormProps) {
   const [projectType, setProjectType] = useState<'repository' | 'workspace'>('repository');
   const [workspaceRepos, setWorkspaceRepos] = useState<WorkspaceRepo[]>([]);
   const [worktrees, setWorktrees] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<'project' | 'terminal'>('project');
   
 
   interface WorkspaceRepo {
@@ -310,8 +312,53 @@ export function ProjectForm({ mode }: ProjectFormProps) {
           )}
         </div>
         
-        <div className="space-y-6">
-          {isCreateMode && (
+        {/* Tab Navigation */}
+        <div className="flex border-b mb-6" style={{ borderColor: 'rgb(var(--color-border))' }}>
+          <button
+            onClick={() => setActiveTab('project')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'project' ? '' : 'border-transparent'
+            }`}
+            style={{
+              color: activeTab === 'project' 
+                ? 'rgb(var(--color-primary))' 
+                : 'rgb(var(--color-muted-foreground))',
+              borderColor: activeTab === 'project' 
+                ? 'rgb(var(--color-primary))' 
+                : 'transparent'
+            }}
+          >
+            <div className="flex items-center gap-2">
+              <FolderGit2 className="w-4 h-4" />
+              Project Settings
+            </div>
+          </button>
+          
+          <button
+            onClick={() => setActiveTab('terminal')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'terminal' ? '' : 'border-transparent'
+            }`}
+            style={{
+              color: activeTab === 'terminal' 
+                ? 'rgb(var(--color-primary))' 
+                : 'rgb(var(--color-muted-foreground))',
+              borderColor: activeTab === 'terminal' 
+                ? 'rgb(var(--color-primary))' 
+                : 'transparent'
+            }}
+          >
+            <div className="flex items-center gap-2">
+              <Settings className="w-4 h-4" />
+              Terminal Settings
+            </div>
+          </button>
+        </div>
+        
+        {/* Tab Content */}
+        {activeTab === 'project' && (
+          <div className="space-y-6">
+            {isCreateMode && (
             <div>
               <h2 className="text-lg font-medium mb-2">Import Options</h2>
               <p className="text-sm mb-6" style={{ color: 'rgb(var(--color-muted-foreground))' }}>
@@ -675,7 +722,13 @@ export function ProjectForm({ mode }: ProjectFormProps) {
               </div>
             </div>
           )}
-        </div>
+          </div>
+        )}
+        
+        {/* Terminal Settings Tab */}
+        {activeTab === 'terminal' && (
+          <TerminalSettings />
+        )}
       </div>
 
       {selectedProject && (
