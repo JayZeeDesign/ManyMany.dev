@@ -104,9 +104,6 @@ export const Sidebar: React.FC = () => {
                     }}
                     onClick={() => {
                       selectProject(project.id);
-                      if (projectWorktrees.length > 0) {
-                        toggleProjectExpansion(project.id);
-                      }
                     }}
                   >
                     <button
