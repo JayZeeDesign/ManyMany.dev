@@ -2,7 +2,6 @@ import React from 'react';
 import { Plus, FolderGit2, ChevronRight, ChevronDown, GitBranch, Settings } from 'lucide-react';
 import { useProjectStore } from '@/stores/projectStore';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 
 export const Sidebar: React.FC = () => {
   const {
@@ -45,77 +44,36 @@ export const Sidebar: React.FC = () => {
         backgroundColor: 'rgb(var(--color-sidebar))', 
         borderRight: '1px solid rgb(var(--color-sidebar-border))' 
       }}>
-        <Button variant="ghost" size="icon" style={{ color: 'rgb(var(--color-sidebar-foreground))' }}>
+        <button className="p-2 rounded-md" style={{ color: 'rgb(var(--color-sidebar-foreground))' }}>
           <FolderGit2 className="w-5 h-5" />
-        </Button>
+        </button>
       </div>
     );
   }
 
   return (
-    <div className="sidebar w-64 flex flex-col h-full" style={{ 
+    <div className="sidebar w-64 flex flex-col h-full flex-shrink-0" style={{ 
       backgroundColor: 'rgb(var(--color-sidebar))', 
       borderRight: '1px solid rgb(var(--color-sidebar-border))' 
     }}>
-      {/* Header - Reduced padding to better align with tab bar */}
-      <div className="h-10 px-3 flex items-center justify-between" style={{ borderBottom: '1px solid rgb(var(--color-sidebar-border))' }}>
+      {/* Header */}
+      <div className="h-10 px-3 flex items-center flex-shrink-0" style={{ borderBottom: '1px solid rgb(var(--color-sidebar-border))' }}>
         <h2 className="font-medium text-xs uppercase tracking-wide" style={{ color: 'rgb(var(--color-sidebar-foreground))' }}>Projects</h2>
-        <button
-          className="p-1 rounded-md transition-all"
-          style={{ 
-            color: 'rgb(var(--color-sidebar-foreground))',
-            backgroundColor: 'transparent',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = 'rgb(var(--color-sidebar-accent))';
-            e.currentTarget.style.transform = 'scale(1.1)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = 'transparent';
-            e.currentTarget.style.transform = 'scale(1)';
-          }}
-          onClick={() => selectProject(null)}
-        >
-          <Plus className="w-4 h-4" />
-        </button>
       </div>
 
       {/* Projects List */}
       <div className="flex-1 overflow-y-auto">
         {projects.length === 0 ? (
           <div className="p-4 text-center">
-            <p className="text-sm mb-3" style={{ color: 'rgb(var(--color-muted-foreground))' }}>No projects yet.</p>
-            <button
-              className="w-full px-3 py-1.5 text-sm rounded-md transition-all flex items-center justify-center group"
-              style={{ 
-                backgroundColor: 'rgb(var(--color-secondary))',
-                color: 'rgb(var(--color-secondary-foreground))',
-                border: '1px solid transparent',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgb(var(--color-primary))';
-                e.currentTarget.style.color = 'rgb(var(--color-primary-foreground))';
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgb(var(--color-secondary))';
-                e.currentTarget.style.color = 'rgb(var(--color-secondary-foreground))';
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = 'none';
-              }}
-              onClick={() => selectProject(null)}
-            >
-              <Plus className="w-4 h-4 mr-2 transition-transform group-hover:rotate-90" />
-              Add Project
-            </button>
+            <p className="text-sm" style={{ color: 'rgb(var(--color-muted-foreground))' }}>No projects yet.</p>
+            <p className="text-xs mt-2" style={{ color: 'rgb(var(--color-muted-foreground))' }}>Import a project to get started.</p>
           </div>
         ) : (
           <div className="py-1">
             {projects.map((project) => {
               const projectWorktrees = getProjectWorktrees(project.id);
               const isExpanded = expandedProjects.has(project.id);
-              const isSelected = selectedProjectId === project.id;
+              const isSelected = selectedProjectId === project.id && !selectedWorktreeId;
 
               return (
                 <div key={project.id}>
@@ -125,8 +83,12 @@ export const Sidebar: React.FC = () => {
                       "flex items-center px-3 py-1.5 cursor-pointer transition-all group"
                     )}
                     style={{
-                      backgroundColor: isSelected ? 'rgb(var(--color-sidebar-primary))' : 'transparent',
-                      color: isSelected ? 'rgb(var(--color-sidebar-primary-foreground))' : 'rgb(var(--color-sidebar-foreground))'
+                      backgroundColor: isSelected ? 'rgb(var(--color-primary) / 0.15)' : 'transparent',
+                      color: isSelected ? 'rgb(var(--color-primary))' : 'rgb(var(--color-sidebar-foreground))',
+                      borderRadius: isSelected ? '8px' : '0px',
+                      marginLeft: isSelected ? '6px' : '0px',
+                      marginRight: isSelected ? '6px' : '0px',
+                      fontWeight: isSelected ? '600' : '400'
                     }}
                     onMouseEnter={(e) => {
                       if (!isSelected) {
@@ -193,8 +155,12 @@ export const Sidebar: React.FC = () => {
                             key={worktree.id}
                             className="flex items-center px-3 py-1 cursor-pointer transition-all text-sm"
                             style={{
-                              backgroundColor: selectedWorktreeId === worktree.id ? 'rgb(var(--color-sidebar-primary))' : 'transparent',
-                              color: selectedWorktreeId === worktree.id ? 'rgb(var(--color-sidebar-primary-foreground))' : 'rgb(var(--color-sidebar-foreground))'
+                              backgroundColor: selectedWorktreeId === worktree.id ? 'rgb(var(--color-primary) / 0.1)' : 'transparent',
+                              color: selectedWorktreeId === worktree.id ? 'rgb(var(--color-primary))' : 'rgb(var(--color-sidebar-foreground))',
+                              borderRadius: selectedWorktreeId === worktree.id ? '6px' : '0px',
+                              marginLeft: selectedWorktreeId === worktree.id ? '4px' : '0px',
+                              marginRight: selectedWorktreeId === worktree.id ? '4px' : '0px',
+                              fontWeight: selectedWorktreeId === worktree.id ? '500' : '400'
                             }}
                             onMouseEnter={(e) => {
                               if (selectedWorktreeId !== worktree.id) {
@@ -254,10 +220,31 @@ export const Sidebar: React.FC = () => {
       </div>
 
       {/* Footer */}
-      <div className="p-3" style={{ borderTop: '1px solid rgb(var(--color-sidebar-border))' }}>
-        <div className="text-xs" style={{ color: 'rgb(var(--color-muted-foreground))' }}>
-          Worktree Studio
-        </div>
+      <div className="p-3 flex-shrink-0" style={{ borderTop: '1px solid rgb(var(--color-sidebar-border))' }}>
+        <button
+          className="w-full px-3 py-2 text-sm rounded-md transition-all flex items-center justify-center group"
+          style={{ 
+            backgroundColor: 'rgb(var(--color-secondary))',
+            color: 'rgb(var(--color-secondary-foreground))',
+            border: '1px solid rgb(var(--color-border))',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = 'rgb(var(--color-primary))';
+            e.currentTarget.style.color = 'rgb(var(--color-primary-foreground))';
+            e.currentTarget.style.transform = 'translateY(-1px)';
+            e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'rgb(var(--color-secondary))';
+            e.currentTarget.style.color = 'rgb(var(--color-secondary-foreground))';
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = 'none';
+          }}
+          onClick={() => selectProject(null)}
+        >
+          <Plus className="w-4 h-4 mr-2 transition-transform group-hover:rotate-90" />
+          Import New Project
+        </button>
       </div>
     </div>
   );

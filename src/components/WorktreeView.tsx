@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { ArrowLeft, Plus, X, GitBranch, FolderOpen, Terminal as TerminalIcon } from 'lucide-react';
+import { Plus, X, Terminal as TerminalIcon } from 'lucide-react';
 import { useProjectStore } from '@/stores/projectStore';
 import { Terminal } from './Terminal';
 
@@ -15,15 +15,10 @@ interface TerminalSession {
 }
 
 export function WorktreeView() {
-  const { getSelectedProject, getSelectedWorktree, selectWorktree } = useProjectStore();
+  const { getSelectedProject, getSelectedWorktree } = useProjectStore();
   const project = getSelectedProject();
   const worktree = getSelectedWorktree();
 
-  // Helper function to extract worktree name from path
-  const getWorktreeName = (worktreePath: string) => {
-    const pathParts = worktreePath.split('/');
-    return pathParts[pathParts.length - 1] || 'Unnamed';
-  };
   // Store terminal sessions per worktree ID
   const [terminalsByWorktree, setTerminalsByWorktree] = useState<Record<string, {
     terminals: TerminalSession[];
@@ -36,13 +31,25 @@ export function WorktreeView() {
   const terminals = currentWorktreeTerminals?.terminals || [];
   const activeTerminalId = currentWorktreeTerminals?.activeTerminalId || null;
 
+  // Listen for create terminal events from header
+  useEffect(() => {
+    const handleCreateTerminal = () => {
+      if (worktree) {
+        handleCreateTerminalInternal();
+      }
+    };
+
+    document.addEventListener('createTerminal', handleCreateTerminal);
+    return () => document.removeEventListener('createTerminal', handleCreateTerminal);
+  }, [worktree]);
+
   // Clean state management without debug logging
 
   if (!project || !worktree) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
-          <GitBranch className="w-12 h-12 mx-auto mb-4 opacity-50" />
+          <TerminalIcon className="w-12 h-12 mx-auto mb-4 opacity-50" />
           <p className="text-lg mb-2">No worktree selected</p>
           <p className="text-sm" style={{ color: 'rgb(var(--color-muted-foreground))' }}>
             Select a worktree from your project to view details
@@ -52,7 +59,7 @@ export function WorktreeView() {
     );
   }
 
-  const handleCreateTerminal = async () => {
+  const handleCreateTerminalInternal = async () => {
     if (isCreatingTerminal || !worktree) return;
     
     const terminalName = `Terminal ${terminals.length + 1}`;
@@ -171,72 +178,6 @@ export function WorktreeView() {
 
   return (
     <div className="flex-1 flex flex-col h-full">
-      {/* Header */}
-      <div className="border-b px-6 py-4" style={{ borderColor: 'rgb(var(--color-border))' }}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => selectWorktree(null)}
-              className="p-1.5 rounded-md transition-all"
-              style={{ 
-                backgroundColor: 'transparent',
-                color: 'rgb(var(--color-muted-foreground))'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgb(var(--color-muted))';
-                e.currentTarget.style.color = 'rgb(var(--color-foreground))';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'transparent';
-                e.currentTarget.style.color = 'rgb(var(--color-muted-foreground))';
-              }}
-              title="Back to project"
-            >
-              <ArrowLeft className="w-4 h-4" />
-            </button>
-            <div>
-              <div className="flex items-center gap-2">
-                <GitBranch className="w-5 h-5" style={{ color: 'rgb(var(--color-primary))' }} />
-                <h1 className="text-xl font-semibold">{getWorktreeName(worktree.path)}</h1>
-                <span className="text-sm px-2 py-1 rounded" style={{ 
-                  backgroundColor: 'rgb(var(--color-muted))',
-                  color: 'rgb(var(--color-muted-foreground))'
-                }}>
-                  {worktree.branch}
-                </span>
-              </div>
-              <div className="flex items-center gap-2 mt-1">
-                <FolderOpen className="w-4 h-4" style={{ color: 'rgb(var(--color-muted-foreground))' }} />
-                <p className="text-sm" style={{ color: 'rgb(var(--color-muted-foreground))' }}>
-                  {worktree.path}
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleCreateTerminal}
-              className="px-3 py-1.5 text-sm font-medium rounded-md transition-all flex items-center gap-2"
-              style={{ 
-                backgroundColor: 'rgb(var(--color-primary))',
-                color: 'rgb(var(--color-primary-foreground))'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = 'none';
-              }}
-            >
-              <Plus className="w-4 h-4" />
-              {isCreatingTerminal ? 'Creating...' : 'New Terminal'}
-            </button>
-          </div>
-        </div>
-      </div>
-
       {/* Terminal Area */}
       <div className="flex-1 flex flex-col">
         {terminals.length === 0 ? (
@@ -248,7 +189,7 @@ export function WorktreeView() {
                 Create a terminal to start working in this worktree
               </p>
               <button
-                onClick={handleCreateTerminal}
+                onClick={handleCreateTerminalInternal}
                 className="px-4 py-2 text-sm font-medium rounded-md transition-all"
                 style={{ 
                   backgroundColor: 'rgb(var(--color-primary))',
@@ -320,7 +261,7 @@ export function WorktreeView() {
                 </div>
               ))}
               <button
-                onClick={handleCreateTerminal}
+                onClick={handleCreateTerminalInternal}
                 className="p-1.5 rounded transition-all ml-2"
                 style={{ 
                   backgroundColor: 'transparent',
