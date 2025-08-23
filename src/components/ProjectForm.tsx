@@ -114,44 +114,6 @@ export function ProjectForm({ mode }: ProjectFormProps) {
     }
   };
 
-  const handleSelectWorkspace = async () => {
-    try {
-      const selected = await open({
-        multiple: false,
-        title: 'Select Workspace File',
-        filters: [
-          { name: 'Workspace', extensions: ['code-workspace', 'json'] },
-          { name: 'All Files', extensions: ['*'] }
-        ]
-      });
-      
-      if (selected && typeof selected === 'string') {
-        setProjectPath(selected);
-        setProjectType('workspace');
-        
-        // Auto-detect project name from file
-        const fileName = selected.split('/').pop()?.replace(/\.(code-workspace|json)$/, '') || 
-                        selected.split('\\').pop()?.replace(/\.(code-workspace|json)$/, '') || '';
-        if (!projectName) {
-          setProjectName(fileName);
-        }
-
-        // Parse workspace file to get repositories
-        try {
-          const repos = await invoke<WorkspaceRepo[]>('parse_workspace_file', { 
-            workspacePath: selected 
-          });
-          setWorkspaceRepos(repos);
-        } catch (error) {
-          console.error('Failed to parse workspace file:', error);
-          setWorkspaceRepos([]);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to select workspace:', error);
-    }
-  };
-
   const updateWorkspaceRepoBranch = (repoIndex: number, newBranch: string) => {
     setWorkspaceRepos(prev => 
       prev.map((repo, index) => 

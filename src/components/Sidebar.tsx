@@ -23,6 +23,12 @@ export const Sidebar: React.FC = () => {
 
   const [expandedProjects, setExpandedProjects] = React.useState<Set<string>>(new Set());
 
+  // Initialize expanded projects with all project IDs (expand all by default)
+  React.useEffect(() => {
+    const allProjectIds = new Set(projects.map(p => p.id));
+    setExpandedProjects(allProjectIds);
+  }, [projects]);
+
   const toggleProjectExpansion = (projectId: string) => {
     const newExpanded = new Set(expandedProjects);
     if (newExpanded.has(projectId)) {

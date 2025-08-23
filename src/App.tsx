@@ -5,7 +5,7 @@ import { ProjectForm } from './components/ProjectForm';
 import { WorktreeView } from './components/WorktreeView';
 import { FileChangesPanel } from './components/FileChangesPanel';
 import { useProjectStore } from './stores/projectStore';
-import { FolderGit2, GitBranch, ChevronRight, ExternalLink, ChevronDown, Folder, Code, FileText } from 'lucide-react';
+import { FolderGit2, GitBranch, ChevronRight, ChevronDown, Folder, Code, FileText } from 'lucide-react';
 
 function App() {
   const { selectedProjectId, selectedWorktreeId, getSelectedProject, getSelectedWorktree, selectWorktree, showFileChangesPanel, toggleFileChangesPanel } = useProjectStore();
@@ -239,7 +239,7 @@ function App() {
                 ) : (
                   <div className="flex-1 flex items-center justify-center h-full">
                     <div className="text-center">
-                      <h2 className="text-2xl font-light mb-4" style={{ color: 'rgb(var(--color-foreground))' }}>Welcome to Manymany.dev</h2>
+                      <h2 className="text-2xl font-light mb-4" style={{ color: 'rgb(var(--color-foreground))' }}>Welcome to ManyMany.dev</h2>
                       <p className="mb-6" style={{ color: 'rgb(var(--color-muted-foreground))' }}>
                         Add a project to get started
                       </p>

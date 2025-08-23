@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { X, FileText, FilePlus, FileX, FileEdit, Circle, ExternalLink } from 'lucide-react';
+import { X, FileText, ExternalLink } from 'lucide-react';
 import { useProjectStore } from '@/stores/projectStore';
 
 interface GitStatus {
