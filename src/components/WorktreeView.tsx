@@ -40,8 +40,7 @@ export function WorktreeView() {
   // Get current worktree ID from store to avoid dependency on props
   const currentWorktreeId = useProjectStore(state => state.selectedWorktreeId);
   
-  // Track which worktrees have had their default terminals created
-  const [worktreesWithDefaults, setWorktreesWithDefaults] = useState(new Set<string>());
+  // No longer track worktrees with defaults - always create defaults when visiting worktree with no terminals
   
   // Track which terminal is being edited
   const [editingTerminalId, setEditingTerminalId] = useState<string | null>(null);
@@ -60,18 +59,17 @@ export function WorktreeView() {
     return () => document.removeEventListener('createTerminal', handleCreateTerminal);
   }, [worktree]);
 
-  // Auto-create default terminals when a worktree is first selected
+  // Auto-create default terminals when a worktree has no terminals
   useEffect(() => {
     if (!worktree || !worktree.id) return;
     
-    // Check if this worktree already has terminals or we've already created defaults
+    // Always create defaults if worktree has no terminals (simplified logic)
     const existingTerminals = getTerminalsForWorktree(worktree.id);
-    if (existingTerminals.length > 0 || worktreesWithDefaults.has(worktree.id)) {
+    if (existingTerminals.length > 0) {
       return;
     }
     
-    // Mark this worktree as processed
-    setWorktreesWithDefaults(prev => new Set([...prev, worktree.id]));
+    console.log(`[WorktreeView] Creating default terminals for worktree: ${worktree.id}`);
     
     // Create default terminals
     const createDefaultTerminals = async () => {
@@ -108,7 +106,7 @@ export function WorktreeView() {
     // Small delay to ensure worktree is fully loaded
     setTimeout(createDefaultTerminals, 300);
     
-  }, [worktree, defaultTerminals, getTerminalsForWorktree, createTerminal, setBackendTerminalId, worktreesWithDefaults]);
+  }, [worktree, defaultTerminals, getTerminalsForWorktree, createTerminal, setBackendTerminalId]);
 
   // Focus the input when entering edit mode
   useEffect(() => {

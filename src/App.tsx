@@ -1,61 +1,18 @@
-import { useEffect, useRef } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+// No more useEffect or invoke needed for terminal restoration
 import { Sidebar } from './components/Sidebar';
 import { ProjectForm } from './components/ProjectForm';
 import { WorktreeView } from './components/WorktreeView';
 import { useProjectStore } from './stores/projectStore';
-import { useTerminalStore } from './stores/terminalStore';
 import { FolderGit2, GitBranch, ChevronRight, Plus } from 'lucide-react';
 
 function App() {
   const { selectedProjectId, selectedWorktreeId, getSelectedProject, getSelectedWorktree, selectWorktree } = useProjectStore();
-  const { 
-    terminals: allTerminals, 
-    setBackendTerminalId, 
-    restoreTerminalSessions 
-  } = useTerminalStore();
+  // Terminal store no longer needed for restoration
   
   const selectedProject = getSelectedProject();
   const selectedWorktree = getSelectedWorktree();
   
-  // Track if restoration has been attempted to prevent multiple restoration attempts
-  const restorationAttempted = useRef(false);
 
-  // Global terminal restoration - runs once on app startup
-  useEffect(() => {
-    const handleTerminalRestoration = async () => {
-      if (restorationAttempted.current) {
-        return;
-      }
-      restorationAttempted.current = true;
-      
-      // Only restore if there are persisted terminals without backend IDs (meaning app was restarted)
-      const terminalsToRestore = allTerminals.filter(t => !t.backendTerminalId);
-      
-      if (terminalsToRestore.length > 0) {
-        // Call the store method to clear old backend IDs
-        restoreTerminalSessions();
-        
-        for (const terminal of terminalsToRestore) {
-          try {
-            const backendTerminalId = await invoke('create_terminal', {
-              request: {
-                worktree_id: terminal.worktreeId,
-                name: terminal.name,
-                working_directory: terminal.workingDirectory
-              }
-            }) as string;
-            
-            setBackendTerminalId(terminal.id, backendTerminalId);
-          } catch (error) {
-            console.error(`Failed to restore terminal "${terminal.name}":`, error);
-          }
-        }
-      }
-    };
-
-    handleTerminalRestoration();
-  }, [allTerminals, setBackendTerminalId, restoreTerminalSessions]);
   
   // Helper function to extract worktree name from path
   const getWorktreeName = (worktreePath: string) => {
