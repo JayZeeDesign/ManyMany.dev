@@ -1,0 +1,121 @@
+name: Updater
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  updater:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create updater artifacts
+        run: |
+          # Get release information
+          RELEASE_ID=$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/latest" | \
+            jq -r '.id')
+          
+          RELEASE_UPLOAD_URL=$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/latest" | \
+            jq -r '.upload_url')
+            
+          VERSION=$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/latest" | \
+            jq -r '.tag_name')
+
+          # Download release assets
+          mkdir -p update-assets
+          cd update-assets
+          
+          # Download macOS assets
+          curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -o "ManyMany.dev.app.tar.gz" \
+            "https://github.com/${{ github.repository }}/releases/download/${VERSION}/ManyMany.dev_aarch64.app.tar.gz" || true
+          
+          curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -o "ManyMany.dev_x64.app.tar.gz" \
+            "https://github.com/${{ github.repository }}/releases/download/${VERSION}/ManyMany.dev_x64.app.tar.gz" || true
+            
+          # Download Windows assets  
+          curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -o "ManyMany.dev_x64_en-US.msi" \
+            "https://github.com/${{ github.repository }}/releases/download/${VERSION}/ManyMany.dev_x64_en-US.msi" || true
+            
+          # Download Linux assets
+          curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -o "many-many-dev_amd64.AppImage" \
+            "https://github.com/${{ github.repository }}/releases/download/${VERSION}/many-many-dev_*_amd64.AppImage" || true
+
+          # Download signatures
+          curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -o "ManyMany.dev.app.tar.gz.sig" \
+            "https://github.com/${{ github.repository }}/releases/download/${VERSION}/ManyMany.dev_aarch64.app.tar.gz.sig" || true
+            
+          curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -o "ManyMany.dev_x64.app.tar.gz.sig" \
+            "https://github.com/${{ github.repository }}/releases/download/${VERSION}/ManyMany.dev_x64.app.tar.gz.sig" || true
+            
+          curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -o "ManyMany.dev_x64_en-US.msi.sig" \
+            "https://github.com/${{ github.repository }}/releases/download/${VERSION}/ManyMany.dev_x64_en-US.msi.sig" || true
+            
+          curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -o "many-many-dev_amd64.AppImage.sig" \
+            "https://github.com/${{ github.repository }}/releases/download/${VERSION}/many-many-dev_*_amd64.AppImage.sig" || true
+
+          ls -la
+          cd ..
+
+      - name: Generate latest.json
+        run: |
+          VERSION=$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/latest" | \
+            jq -r '.tag_name')
+          
+          RELEASE_NOTES=$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/latest" | \
+            jq -r '.body')
+          
+          RELEASE_DATE=$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/latest" | \
+            jq -r '.published_at')
+
+          # Create latest.json with platform-specific downloads
+          cat > latest.json << EOF
+          {
+            "version": "${VERSION}",
+            "notes": "${RELEASE_NOTES}",
+            "pub_date": "${RELEASE_DATE}",
+            "platforms": {
+              "darwin-aarch64": {
+                "signature": "$(cat update-assets/ManyMany.dev.app.tar.gz.sig 2>/dev/null || echo '')",
+                "url": "https://github.com/${{ github.repository }}/releases/download/${VERSION}/ManyMany.dev_aarch64.app.tar.gz"
+              },
+              "darwin-x86_64": {
+                "signature": "$(cat update-assets/ManyMany.dev_x64.app.tar.gz.sig 2>/dev/null || echo '')",
+                "url": "https://github.com/${{ github.repository }}/releases/download/${VERSION}/ManyMany.dev_x64.app.tar.gz"
+              },
+              "linux-x86_64": {
+                "signature": "$(cat update-assets/many-many-dev_amd64.AppImage.sig 2>/dev/null || echo '')",
+                "url": "https://github.com/${{ github.repository }}/releases/download/${VERSION}/many-many-dev_amd64.AppImage"
+              },
+              "windows-x86_64": {
+                "signature": "$(cat update-assets/ManyMany.dev_x64_en-US.msi.sig 2>/dev/null || echo '')",
+                "url": "https://github.com/${{ github.repository }}/releases/download/${VERSION}/ManyMany.dev_x64_en-US.msi"
+              }
+            }
+          }
+          EOF
+
+      - name: Upload latest.json
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./latest.json
+          asset_name: latest.json
+          asset_content_type: application/json

@@ -46,6 +46,19 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "macOS": {
+      "signingIdentity": "Developer ID Application: Meta XYZ Pty Limited (6X48X77HD6)",
+      "hardenedRuntime": true,
+      "entitlements": null
+    }
+  },
+  "updater": {
+    "active": true,
+    "endpoints": [
+      "https://github.com/JayZeeDesign/ManyMany.dev/releases/latest/download/latest.json"
+    ],
+    "dialog": true,
+    "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDFEOUFBNTExQkZCOENDNzcKUldSM3pMaS9FYVdhSFJhNU9PclFOWWRFdmtLaWxJOEcrckUvYnM3RFpQUkpQL0FwdGRQMmJqZ0oK"
   }
 }
