@@ -220,7 +220,7 @@ pub async fn get_available_branches(project_path: String) -> Result<Vec<String>,
     
     if list_output.status.success() {
         let list_str = String::from_utf8_lossy(&list_output.stdout);
-        let mut current_branch = String::new();
+        let mut current_branch;
         
         for line in list_str.lines() {
             if line.starts_with("branch ") {

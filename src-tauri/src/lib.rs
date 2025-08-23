@@ -5,7 +5,7 @@ use commands::{
     project::{add_project, list_projects, remove_project, get_default_branch, parse_workspace_file},
     worktree::{create_worktree, list_worktrees, remove_worktree, get_available_branches},
     git::{get_git_status, git_commit, git_stage_file, git_unstage_file},
-    terminal::open_editor,
+    terminal::{open_editor, create_terminal, write_to_terminal, read_from_terminal, resize_terminal, close_terminal, list_terminals},
 };
 use git_commands::{is_git_repository};
 
@@ -27,6 +27,12 @@ pub fn run() {
             git_stage_file,
             git_unstage_file,
             open_editor,
+            create_terminal,
+            write_to_terminal,
+            read_from_terminal,
+            resize_terminal,
+            close_terminal,
+            list_terminals,
             is_git_repository,
             get_default_branch,
             parse_workspace_file,

@@ -45,37 +45,52 @@ Build a Tauri-based desktop app for managing Git worktrees with integrated termi
 
 2. **Frontend Components** ✅ Complete
    - ✅ Project sidebar component with Add Project button
-   - ✅ AddProject component (replaces dialog approach)
+   - ✅ AddProject component (uses main content area, not dialog)
    - ✅ Repository folder picker with native file dialogs
    - ✅ Workspace file picker (.code-workspace, .json)
    - ✅ Auto-detection of project name and Git branch
    - ✅ Project form with validation and styling
-   - ✅ Project store integration (Zustand)
+   - ✅ Project store integration (Zustand with persistence)
+   - ✅ Project display when selected in sidebar
+   - ✅ Clean UI matching sidebar theme (no cards)
 
-3. **Data Persistence** 🔄 Next Priority
-   - 🔄 JSON config in app data directory
-   - 🔄 Project metadata storage
-   - 🔄 Load projects on app startup
+3. **Data Persistence** ✅ Complete
+   - ✅ Zustand persist middleware for local storage
+   - ✅ Project metadata storage in browser storage
+   - ✅ Load projects on app startup automatically
 
-### Week 3: Worktree Management
+### Week 3: Worktree Management ✅ COMPLETED
 **Goal:** Full worktree lifecycle management
 
-1. **Git Operations** ✅ Backend Ready
-   - ✅ Shell out to `git worktree` commands (Rust commands ready)
-   - ✅ Worktree listing and status
-   - ✅ Create worktree with branch selection
-   - ✅ Delete worktree (clean up files + git refs)
+1. **Git Operations** ✅ Complete
+   - ✅ Shell out to `git worktree` commands with proper error handling
+   - ✅ Worktree listing and status (`list_worktrees` command)
+   - ✅ Create worktree with branch selection (`create_worktree` command)
+   - ✅ Delete worktree with cleanup (`remove_worktree` command)
+   - ✅ Get available branches (`get_available_branches` command)
+   - ✅ Support for main/master branches with `--force` flag
 
-2. **UI Components** 🔄 TODO
-   - ✅ Worktree list per project (UI structure ready)
-   - 🔄 Create worktree dialog
-   - 🔄 Branch selector/input
-   - 🔄 Delete confirmation modal
+2. **UI Components** ✅ Complete
+   - ✅ Worktree list integrated into ProjectForm
+   - ✅ Create worktree dialog with branch selection
+   - ✅ Custom worktree naming with auto-suggestions
+   - ✅ Branch selector with existing/custom branch options
+   - ✅ Delete worktree functionality with confirmation
+   - ✅ "Open in Editor" button for each worktree
 
-3. **Worktree Storage** ✅ Backend Ready
-   - ✅ Auto-create `~/.worktrees/<project>/` structure
+3. **Worktree Storage** ✅ Complete
+   - ✅ Auto-create `~/.worktrees/<project>/<custom-name>/` structure
+   - ✅ Sanitized folder names for filesystem safety
    - ✅ Path management and validation
-   - ✅ Handle edge cases (existing folders, permissions)
+   - ✅ Handle edge cases (existing folders, permissions, branch conflicts)
+
+**Additional Features Implemented:**
+- ✅ Custom worktree naming (user-provided names instead of branch names)
+- ✅ Auto-suggestion of worktree names based on selected branches
+- ✅ Support for creating multiple worktrees from main/master branches
+- ✅ Real-time worktree list updates after creation/deletion
+- ✅ Path preview in creation dialog
+- ✅ Comprehensive error handling and user-friendly messages
 
 ### Week 4: Terminal Integration
 **Goal:** Embedded terminal functionality
@@ -183,43 +198,44 @@ worktree-studio/
 
 ## 📋 Current Status & Next Steps
 
-### ✅ Completed (Weeks 1-2)
+### ✅ Completed (Weeks 1-3)
 1. ✅ Set up Tauri project with React/Vite
 2. ✅ Create sidebar layout with project list
 3. ✅ VS Code-like dark theme
-4. ✅ State management with Zustand
+4. ✅ State management with Zustand (with persistence)
 5. ✅ All Rust backend commands structure
 6. ✅ TypeScript types and interfaces
 7. ✅ **Add Project Feature Complete**
    - ✅ Folder picker using Tauri's dialog API with proper permissions
    - ✅ Workspace file picker for .code-workspace/.json files
    - ✅ Auto-detection of Git repositories and default branches
-   - ✅ Connected to backend `add_project` command
+   - ✅ Git commands (`is_git_repository`, `get_default_branch`)
    - ✅ Updates Zustand store with new projects
    - ✅ Clean UI integrated into main content area
+   - ✅ Project display view when selected
+   - ✅ Data persistence with Zustand persist middleware
 
-### 🔄 Immediate Next Steps (Week 3)
-1. **Data Persistence** 🚨 High Priority
-   - Implement config file storage in Rust backend
-   - Load projects on app startup from persistent storage
-   - Save projects when added/removed
-   - Handle app data directory creation
+### 🔄 Immediate Next Steps (Week 4)
 
-2. **Worktree Creation UI**
-   - Create worktree dialog component
-   - Branch input/selector
-   - Connect to backend `create_worktree` command
-   - Integrate with selected project context
+1. **Worktree UI Integration** 🚨 Next Priority
+   - Connect worktree backend to frontend
+   - Create worktree button in project view
+   - Worktree list display in project view
+   - Delete worktree functionality
+   - Open in editor functionality
+
+2. **Terminal Integration** 🔄 In Progress
+   - Fix portable-pty integration issues
+   - Create Terminal component with xterm.js
+   - Spawn shell processes per worktree
+   - Handle terminal lifecycle (create, destroy, restart)
+   - Terminal tabs management
+   - Working directory management
 
 3. **Project Management Polish**
    - Remove project functionality
    - Edit project settings
-   - Project validation and error handling
-
-4. **Terminal Integration**
-   - Create Terminal component with xterm.js
-   - Integrate with worktree selection
-   - Handle terminal lifecycle
+   - Better error handling and user feedback
 
 ## 🚀 Quick Start (Current State)
 
@@ -238,11 +254,13 @@ npm run tauri dev
 
 ## 🎯 Success Metrics
 - ✅ Can add projects (folder picker + workspace files)
-- 🔄 Can remove projects (needs persistence first)
-- 🔄 Can create/delete worktrees
-- 🔄 Terminals work reliably
-- 🔄 Can commit changes
-- 🔄 Opens in VS Code/Cursor
+- ✅ Projects persist across app restarts
+- 🔄 Can remove projects (UI needs implementation)
+- ✅ Can create/delete worktrees with custom names (backend ready)
+- ✅ Can create worktrees from main/master branches (backend ready)
+- 🔄 Terminals work reliably (fixing portable-pty issues)
+- 🔄 Can commit changes (backend ready, UI needed)
+- 🔄 Opens in VS Code/Cursor (backend ready, UI needed)
 - ✅ Runs on macOS (tested), 🔄 Windows, Linux
 
 ## 📝 Notes
@@ -250,6 +268,7 @@ npm run tauri dev
 - Implemented VS Code-like dark theme as default
 - **Add Project feature is fully functional** with native file dialogs
 - Fixed Tauri v2 dialog plugin permissions (`dialog:allow-open`, `dialog:default`)
-- Project data flows: UI → Tauri commands → Zustand store
-- **Next major milestone: Project persistence** (save/load from disk)
-- Terminal integration and worktree management follow after persistence
+- Project data flows: UI → Tauri commands → Zustand store → LocalStorage
+- **Data persistence completed** using Zustand persist middleware
+- **Current focus:** Connecting worktree backend to frontend UI
+- Terminal integration has portable-pty compilation issues to resolve
