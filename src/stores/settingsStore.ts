@@ -24,7 +24,7 @@ const DEFAULT_TERMINALS: DefaultTerminalConfig[] = [
   {
     id: 'default-1',
     name: 'Claude code',
-    command: '',
+    command: 'claude',
     enabled: true,
   },
 ];

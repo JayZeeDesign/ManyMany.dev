@@ -79,7 +79,7 @@ export function TerminalSettings({ mode = 'edit', previewTerminals, onUpdatePrev
       {
         id: 'default-1',
         name: 'Claude code',
-        command: '',
+        command: 'claude',
         enabled: true,
       },
     ];
