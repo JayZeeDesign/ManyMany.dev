@@ -11,6 +11,7 @@ interface TerminalSession {
   name: string;
   isActive: boolean;
   backendTerminalId?: string; // Backend terminal ID from Tauri
+  workingDirectory: string; // Store the working directory path
 }
 
 export function WorktreeView() {
@@ -23,9 +24,17 @@ export function WorktreeView() {
     const pathParts = worktreePath.split('/');
     return pathParts[pathParts.length - 1] || 'Unnamed';
   };
-  const [terminals, setTerminals] = useState<TerminalSession[]>([]);
-  const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null);
+  // Store terminal sessions per worktree ID
+  const [terminalsByWorktree, setTerminalsByWorktree] = useState<Record<string, {
+    terminals: TerminalSession[];
+    activeTerminalId: string | null;
+  }>>({});
   const [isCreatingTerminal, setIsCreatingTerminal] = useState(false);
+
+  // Get current worktree's terminals
+  const currentWorktreeTerminals = worktree ? terminalsByWorktree[worktree.id] : null;
+  const terminals = currentWorktreeTerminals?.terminals || [];
+  const activeTerminalId = currentWorktreeTerminals?.activeTerminalId || null;
 
   // Clean state management without debug logging
 
@@ -44,7 +53,7 @@ export function WorktreeView() {
   }
 
   const handleCreateTerminal = async () => {
-    if (isCreatingTerminal) return;
+    if (isCreatingTerminal || !worktree) return;
     
     const terminalName = `Terminal ${terminals.length + 1}`;
     const frontendId = `terminal-${Date.now()}`;
@@ -65,11 +74,18 @@ export function WorktreeView() {
         id: frontendId,
         name: terminalName,
         isActive: true,
-        backendTerminalId: backendTerminalId
+        backendTerminalId: backendTerminalId,
+        workingDirectory: worktree.path
       };
       
-      setTerminals([...terminals, newTerminal]);
-      setActiveTerminalId(newTerminal.id);
+      // Update terminals for current worktree
+      setTerminalsByWorktree(prev => ({
+        ...prev,
+        [worktree.id]: {
+          terminals: [...terminals, newTerminal],
+          activeTerminalId: newTerminal.id
+        }
+      }));
       
     } catch (error) {
       console.error('Failed to create terminal:', error);
@@ -80,9 +96,22 @@ export function WorktreeView() {
     }
   };
 
-  const handleCloseTerminal = async (terminalId: string) => {
-    // Find the terminal to close and get its backend ID
-    const terminalToClose = terminals.find(t => t.id === terminalId);
+  const handleCloseTerminal = async (terminalId: string, targetWorktreeId?: string) => {
+    const worktreeIdToClose = targetWorktreeId || worktree?.id;
+    if (!worktreeIdToClose) return;
+    
+    // Find the terminal to close across all worktrees
+    let terminalToClose: TerminalSession | undefined;
+    let sourceWorktreeId: string | undefined;
+    
+    for (const [wId, wTerminals] of Object.entries(terminalsByWorktree)) {
+      const found = wTerminals.terminals.find(t => t.id === terminalId);
+      if (found) {
+        terminalToClose = found;
+        sourceWorktreeId = wId;
+        break;
+      }
+    }
     
     if (terminalToClose && terminalToClose.backendTerminalId) {
       try {
@@ -93,18 +122,51 @@ export function WorktreeView() {
       }
     }
     
-    // Update frontend state
-    setTerminals(terminals.filter(t => t.id !== terminalId));
-    if (activeTerminalId === terminalId) {
-      const remaining = terminals.filter(t => t.id !== terminalId);
-      setActiveTerminalId(remaining.length > 0 ? remaining[0].id : null);
+    if (sourceWorktreeId) {
+      // Update frontend state for the source worktree
+      const sourceTerminals = terminalsByWorktree[sourceWorktreeId].terminals;
+      const remainingTerminals = sourceTerminals.filter(t => t.id !== terminalId);
+      const currentActiveId = terminalsByWorktree[sourceWorktreeId].activeTerminalId;
+      const newActiveTerminalId = currentActiveId === terminalId 
+        ? (remainingTerminals.length > 0 ? remainingTerminals[0].id : null)
+        : currentActiveId;
+      
+      setTerminalsByWorktree(prev => ({
+        ...prev,
+        [sourceWorktreeId]: {
+          terminals: remainingTerminals,
+          activeTerminalId: newActiveTerminalId
+        }
+      }));
     }
   };
 
   const handleRenameTerminal = (terminalId: string, newName: string) => {
-    setTerminals(terminals.map(t => 
+    if (!worktree) return;
+    
+    const updatedTerminals = terminals.map(t => 
       t.id === terminalId ? { ...t, name: newName } : t
-    ));
+    );
+    
+    setTerminalsByWorktree(prev => ({
+      ...prev,
+      [worktree.id]: {
+        terminals: updatedTerminals,
+        activeTerminalId: prev[worktree.id]?.activeTerminalId || null
+      }
+    }));
+  };
+
+  const setActiveTerminalId = (terminalId: string | null) => {
+    if (!worktree) return;
+    
+    setTerminalsByWorktree(prev => ({
+      ...prev,
+      [worktree.id]: {
+        terminals: prev[worktree.id]?.terminals || [],
+        activeTerminalId: terminalId
+      }
+    }));
   };
 
   return (
@@ -278,25 +340,27 @@ export function WorktreeView() {
               </button>
             </div>
 
-            {/* Active Terminal */}
+            {/* All Terminals (from all worktrees) - hidden/shown based on current worktree */}
             <div className="flex-1 p-4">
-              {terminals.map((terminal) => (
-                <div
-                  key={terminal.id}
-                  style={{ 
-                    display: activeTerminalId === terminal.id ? 'block' : 'none',
-                    height: '100%'
-                  }}
-                >
-                  <Terminal
-                    terminalId={terminal.backendTerminalId}
-                    worktreeId={worktree.id}
-                    workingDirectory={worktree.path}
-                    name={terminal.name}
-                    onClose={() => handleCloseTerminal(terminal.id)}
-                  />
-                </div>
-              ))}
+              {Object.entries(terminalsByWorktree).map(([worktreeId, worktreeTerminals]) =>
+                worktreeTerminals.terminals.map((terminal) => (
+                  <div
+                    key={`${worktreeId}-${terminal.id}`}
+                    style={{ 
+                      display: worktreeId === worktree?.id && activeTerminalId === terminal.id ? 'block' : 'none',
+                      height: '100%'
+                    }}
+                  >
+                    <Terminal
+                      terminalId={terminal.backendTerminalId}
+                      worktreeId={worktreeId}
+                      workingDirectory={terminal.workingDirectory}
+                      name={terminal.name}
+                      onClose={() => handleCloseTerminal(terminal.id, worktreeId)}
+                    />
+                  </div>
+                ))
+              )}
             </div>
           </>
         )}
