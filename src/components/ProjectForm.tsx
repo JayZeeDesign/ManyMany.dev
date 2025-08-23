@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { open } from '@tauri-apps/plugin-dialog';
 import { FolderOpen, FileCode2, GitBranch, X, Trash2, Plus, FolderGit2, ExternalLink, ChevronRight, Settings } from 'lucide-react';
 import { useProjectStore } from '@/stores/projectStore';
+import { DefaultTerminalConfig } from '@/stores/settingsStore';
 import { CreateWorktreeDialog } from './CreateWorktreeDialog';
 import { TerminalSettings } from './TerminalSettings';
 import { invoke } from '@tauri-apps/api/core';
@@ -11,7 +12,7 @@ interface ProjectFormProps {
 }
 
 export function ProjectForm({ mode }: ProjectFormProps) {
-  const { getSelectedProject, addProject, updateProject, removeProject, selectProject, selectWorktree, showCreateWorktreeDialog, setShowCreateWorktreeDialog } = useProjectStore();
+  const { getSelectedProject, addProject, updateProject, removeProject, selectProject, selectWorktree, showCreateWorktreeDialog, setShowCreateWorktreeDialog, updateProjectTerminalSettings } = useProjectStore();
   const selectedProject = mode === 'edit' ? getSelectedProject() : null;
 
   // Helper function to extract worktree name from path
@@ -27,6 +28,17 @@ export function ProjectForm({ mode }: ProjectFormProps) {
   const [workspaceRepos, setWorkspaceRepos] = useState<WorkspaceRepo[]>([]);
   const [worktrees, setWorktrees] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'project' | 'terminal'>('project');
+  const [currentStep, setCurrentStep] = useState<1 | 2>(1); // Step-based navigation for create mode
+  
+  // Preview terminal settings for create mode
+  const [previewTerminals, setPreviewTerminals] = useState<DefaultTerminalConfig[]>([
+    {
+      id: 'default-1',
+      name: 'Claude code',
+      command: '',
+      enabled: true,
+    }
+  ]);
   
 
   interface WorkspaceRepo {
@@ -54,6 +66,13 @@ export function ProjectForm({ mode }: ProjectFormProps) {
       setProjectPath('');
       setDefaultBranch('main');
       setProjectType('repository');
+      setCurrentStep(1);
+      setPreviewTerminals([{
+        id: 'default-1',
+        name: 'Claude code',
+        command: '',
+        enabled: true,
+      }]);
     }
   }, [mode, selectedProject?.id]); // Only depend on project ID, not the full object
 
@@ -236,13 +255,24 @@ export function ProjectForm({ mode }: ProjectFormProps) {
         });
         
         // Add to store
-        addProject(result as any);
+        const createdProject = result as any;
+        addProject(createdProject);
+        
+        // Apply preview terminal settings to the newly created project
+        updateProjectTerminalSettings(createdProject.id, previewTerminals);
         
         // Reset form
         setProjectName('');
         setProjectPath('');
         setDefaultBranch('main');
         setProjectType('repository');
+        setCurrentStep(1);
+        setPreviewTerminals([{
+          id: 'default-1',
+          name: 'Claude code',
+          command: '',
+          enabled: true,
+        }]);
       } else if (mode === 'edit' && selectedProject) {
         const updates: Partial<typeof selectedProject> = {
           name: projectName.trim()
@@ -266,6 +296,13 @@ export function ProjectForm({ mode }: ProjectFormProps) {
       setProjectPath('');
       setDefaultBranch('main');
       setProjectType('repository');
+      setCurrentStep(1);
+      setPreviewTerminals([{
+        id: 'default-1',
+        name: 'Claude code',
+        command: '',
+        enabled: true,
+      }]);
     } else if (mode === 'edit') {
       selectProject(null); // Go back to add project view
     }
@@ -312,51 +349,100 @@ export function ProjectForm({ mode }: ProjectFormProps) {
           )}
         </div>
         
-        {/* Tab Navigation */}
-        <div className="flex border-b mb-6" style={{ borderColor: 'rgb(var(--color-border))' }}>
-          <button
-            onClick={() => setActiveTab('project')}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'project' ? '' : 'border-transparent'
-            }`}
-            style={{
-              color: activeTab === 'project' 
-                ? 'rgb(var(--color-primary))' 
-                : 'rgb(var(--color-muted-foreground))',
-              borderColor: activeTab === 'project' 
-                ? 'rgb(var(--color-primary))' 
-                : 'transparent'
-            }}
-          >
-            <div className="flex items-center gap-2">
-              <FolderGit2 className="w-4 h-4" />
-              Project Settings
+        {/* Tab Navigation - Different behavior for create vs edit mode */}
+        {isCreateMode ? (
+          /* Step indicator for create mode */
+          <div className="flex items-center justify-center mb-8">
+            <div className="flex items-center gap-4">
+              {/* Step 1 */}
+              <div className="flex items-center gap-2">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                  currentStep >= 1 ? 'text-white' : ''
+                }`} style={{
+                  backgroundColor: currentStep >= 1 ? 'rgb(var(--color-primary))' : 'rgb(var(--color-muted))',
+                  color: currentStep >= 1 ? 'rgb(var(--color-primary-foreground))' : 'rgb(var(--color-muted-foreground))'
+                }}>
+                  1
+                </div>
+                <span className={`text-sm font-medium ${
+                  currentStep === 1 ? '' : ''
+                }`} style={{
+                  color: currentStep === 1 ? 'rgb(var(--color-foreground))' : 'rgb(var(--color-muted-foreground))'
+                }}>
+                  Project Settings
+                </span>
+              </div>
+              
+              {/* Connector line */}
+              <div className="w-8 h-px" style={{
+                backgroundColor: currentStep >= 2 ? 'rgb(var(--color-primary))' : 'rgb(var(--color-muted))'
+              }} />
+              
+              {/* Step 2 */}
+              <div className="flex items-center gap-2">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                  currentStep >= 2 ? 'text-white' : ''
+                }`} style={{
+                  backgroundColor: currentStep >= 2 ? 'rgb(var(--color-primary))' : 'rgb(var(--color-muted))',
+                  color: currentStep >= 2 ? 'rgb(var(--color-primary-foreground))' : 'rgb(var(--color-muted-foreground))'
+                }}>
+                  2
+                </div>
+                <span className={`text-sm font-medium`} style={{
+                  color: currentStep === 2 ? 'rgb(var(--color-foreground))' : 'rgb(var(--color-muted-foreground))'
+                }}>
+                  Terminal Settings
+                </span>
+              </div>
             </div>
-          </button>
-          
-          <button
-            onClick={() => setActiveTab('terminal')}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'terminal' ? '' : 'border-transparent'
-            }`}
-            style={{
-              color: activeTab === 'terminal' 
-                ? 'rgb(var(--color-primary))' 
-                : 'rgb(var(--color-muted-foreground))',
-              borderColor: activeTab === 'terminal' 
-                ? 'rgb(var(--color-primary))' 
-                : 'transparent'
-            }}
-          >
-            <div className="flex items-center gap-2">
-              <Settings className="w-4 h-4" />
-              Terminal Settings
-            </div>
-          </button>
-        </div>
+          </div>
+        ) : (
+          /* Tab navigation for edit mode */
+          <div className="flex border-b mb-6" style={{ borderColor: 'rgb(var(--color-border))' }}>
+            <button
+              onClick={() => setActiveTab('project')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'project' ? '' : 'border-transparent'
+              }`}
+              style={{
+                color: activeTab === 'project' 
+                  ? 'rgb(var(--color-primary))' 
+                  : 'rgb(var(--color-muted-foreground))',
+                borderColor: activeTab === 'project' 
+                  ? 'rgb(var(--color-primary))' 
+                  : 'transparent'
+              }}
+            >
+              <div className="flex items-center gap-2">
+                <FolderGit2 className="w-4 h-4" />
+                Project Settings
+              </div>
+            </button>
+            
+            <button
+              onClick={() => setActiveTab('terminal')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'terminal' ? '' : 'border-transparent'
+              }`}
+              style={{
+                color: activeTab === 'terminal' 
+                  ? 'rgb(var(--color-primary))' 
+                  : 'rgb(var(--color-muted-foreground))',
+                borderColor: activeTab === 'terminal' 
+                  ? 'rgb(var(--color-primary))' 
+                  : 'transparent'
+              }}
+            >
+              <div className="flex items-center gap-2">
+                <Settings className="w-4 h-4" />
+                Terminal Settings
+              </div>
+            </button>
+          </div>
+        )}
         
         {/* Tab Content */}
-        {activeTab === 'project' && (
+        {((!isCreateMode && activeTab === 'project') || (isCreateMode && currentStep === 1)) && (
           <div className="space-y-6">
             {isCreateMode && (
             <div>
@@ -696,28 +782,58 @@ export function ProjectForm({ mode }: ProjectFormProps) {
                   >
                     Cancel
                   </button>
-                  <button
-                    className="px-4 py-2 text-sm font-medium rounded-md transition-all"
-                    style={{ 
-                      backgroundColor: !projectName || (!projectPath && isCreateMode) ? 'rgb(var(--color-muted))' : 'rgb(var(--color-primary))',
-                      color: !projectName || (!projectPath && isCreateMode) ? 'rgb(var(--color-muted-foreground))' : 'rgb(var(--color-primary-foreground))',
-                      cursor: !projectName || (!projectPath && isCreateMode) ? 'not-allowed' : 'pointer',
-                    }}
-                    onMouseEnter={(e) => {
-                      if (projectName && (projectPath || !isCreateMode)) {
-                        e.currentTarget.style.transform = 'translateY(-2px)';
-                        e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = 'none';
-                    }}
-                    onClick={handleSave}
-                    disabled={!projectName || (!projectPath && isCreateMode)}
-                  >
-                    {saveButtonText}
-                  </button>
+                  {isCreateMode ? (
+                    <button
+                      className="px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2"
+                      style={{ 
+                        backgroundColor: !projectName || !projectPath ? 'rgb(var(--color-muted))' : 'rgb(var(--color-primary))',
+                        color: !projectName || !projectPath ? 'rgb(var(--color-muted-foreground))' : 'rgb(var(--color-primary-foreground))',
+                        cursor: !projectName || !projectPath ? 'not-allowed' : 'pointer',
+                      }}
+                      onMouseEnter={(e) => {
+                        if (projectName && projectPath) {
+                          e.currentTarget.style.transform = 'translateY(-2px)';
+                          e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }}
+                      onClick={() => {
+                        if (projectName && projectPath) {
+                          setCurrentStep(2);
+                        }
+                      }}
+                      disabled={!projectName || !projectPath}
+                    >
+                      Next
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  ) : (
+                    <button
+                      className="px-4 py-2 text-sm font-medium rounded-md transition-all"
+                      style={{ 
+                        backgroundColor: !projectName ? 'rgb(var(--color-muted))' : 'rgb(var(--color-primary))',
+                        color: !projectName ? 'rgb(var(--color-muted-foreground))' : 'rgb(var(--color-primary-foreground))',
+                        cursor: !projectName ? 'not-allowed' : 'pointer',
+                      }}
+                      onMouseEnter={(e) => {
+                        if (projectName) {
+                          e.currentTarget.style.transform = 'translateY(-2px)';
+                          e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }}
+                      onClick={handleSave}
+                      disabled={!projectName}
+                    >
+                      {saveButtonText}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -726,8 +842,55 @@ export function ProjectForm({ mode }: ProjectFormProps) {
         )}
         
         {/* Terminal Settings Tab */}
-        {activeTab === 'terminal' && (
-          <TerminalSettings />
+        {((!isCreateMode && activeTab === 'terminal') || (isCreateMode && currentStep === 2)) && (
+          <div className="space-y-6">
+            <TerminalSettings 
+              mode={isCreateMode ? 'create' : 'edit'}
+              previewTerminals={isCreateMode ? previewTerminals : undefined}
+              onUpdatePreviewTerminals={isCreateMode ? setPreviewTerminals : undefined}
+            />
+            
+            {/* Save button for create mode step 2 */}
+            {isCreateMode && (
+              <div className="flex justify-end gap-2 pt-4 border-t" style={{ borderColor: 'rgb(var(--color-border))' }}>
+                <button
+                  className="px-4 py-2 text-sm font-medium rounded-md transition-all border"
+                  style={{ 
+                    backgroundColor: 'transparent',
+                    color: 'rgb(var(--color-foreground))',
+                    borderColor: 'rgb(var(--color-border))',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgb(var(--color-muted))';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                  }}
+                  onClick={() => setCurrentStep(1)}
+                >
+                  Back
+                </button>
+                <button
+                  className="px-4 py-2 text-sm font-medium rounded-md transition-all"
+                  style={{ 
+                    backgroundColor: 'rgb(var(--color-primary))',
+                    color: 'rgb(var(--color-primary-foreground))',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                  onClick={handleSave}
+                >
+                  Save Project
+                </button>
+              </div>
+            )}
+          </div>
         )}
       </div>
 

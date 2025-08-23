@@ -3,7 +3,6 @@ import { invoke } from '@tauri-apps/api/core';
 import { Plus, X, Terminal as TerminalIcon } from 'lucide-react';
 import { useProjectStore } from '@/stores/projectStore';
 import { useTerminalStore } from '@/stores/terminalStore';
-import { useSettingsStore } from '@/stores/settingsStore';
 import { Terminal } from './Terminal';
 
 export function WorktreeView() {
@@ -24,7 +23,9 @@ export function WorktreeView() {
     getActiveTerminalForWorktree,
   } = useTerminalStore();
   
-  const { defaultTerminals } = useSettingsStore();
+  // Get project-specific terminal settings
+  const { getProjectTerminalSettings } = useProjectStore();
+  const defaultTerminals = project ? getProjectTerminalSettings(project.id) : [];
 
   // Store refs to terminal components for focusing
   const terminalRefs = useRef<Record<string, { focus: () => void }>>({});

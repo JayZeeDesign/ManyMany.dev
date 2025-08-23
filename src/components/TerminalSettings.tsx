@@ -1,28 +1,108 @@
 import { useState } from 'react';
 import { Plus, X, RotateCcw } from 'lucide-react';
-import { useSettingsStore, DefaultTerminalConfig } from '@/stores/settingsStore';
+import { DefaultTerminalConfig } from '@/stores/settingsStore';
+import { useProjectStore } from '@/stores/projectStore';
 
-export function TerminalSettings() {
-  const {
-    defaultTerminals,
-    addDefaultTerminal,
-    removeDefaultTerminal,
-    updateDefaultTerminal,
-    resetToDefaults,
-  } = useSettingsStore();
+interface TerminalSettingsProps {
+  mode?: 'create' | 'edit';
+  previewTerminals?: DefaultTerminalConfig[];
+  onUpdatePreviewTerminals?: (terminals: DefaultTerminalConfig[]) => void;
+}
+
+export function TerminalSettings({ mode = 'edit', previewTerminals, onUpdatePreviewTerminals }: TerminalSettingsProps = {}) {
+  const { 
+    getSelectedProject,
+    getProjectTerminalSettings,
+    addProjectTerminal,
+    removeProjectTerminal,
+    updateProjectTerminal,
+    resetProjectTerminalsToDefaults
+  } = useProjectStore();
+  
+  const selectedProject = getSelectedProject();
+  const defaultTerminals = mode === 'create' 
+    ? (previewTerminals || [])
+    : (selectedProject ? getProjectTerminalSettings(selectedProject.id) : []);
 
   const [editingTerminal, setEditingTerminal] = useState<string | null>(null);
 
   const handleUpdateTerminal = (id: string, field: keyof DefaultTerminalConfig, value: string | boolean) => {
-    updateDefaultTerminal(id, { [field]: value });
+    if (mode === 'create' && onUpdatePreviewTerminals) {
+      const updatedTerminals = defaultTerminals.map(t => 
+        t.id === id ? { ...t, [field]: value } : t
+      );
+      onUpdatePreviewTerminals(updatedTerminals);
+    } else if (mode === 'edit' && selectedProject) {
+      updateProjectTerminal(selectedProject.id, id, { [field]: value });
+    }
   };
 
   const handleNameEdit = (terminal: DefaultTerminalConfig, newName: string) => {
     if (newName.trim()) {
-      updateDefaultTerminal(terminal.id, { name: newName.trim() });
+      if (mode === 'create' && onUpdatePreviewTerminals) {
+        const updatedTerminals = defaultTerminals.map(t => 
+          t.id === terminal.id ? { ...t, name: newName.trim() } : t
+        );
+        onUpdatePreviewTerminals(updatedTerminals);
+      } else if (mode === 'edit' && selectedProject) {
+        updateProjectTerminal(selectedProject.id, terminal.id, { name: newName.trim() });
+      }
     }
     setEditingTerminal(null);
   };
+
+  const handleAddTerminal = () => {
+    if (mode === 'create' && onUpdatePreviewTerminals) {
+      const newTerminal: DefaultTerminalConfig = {
+        id: `default-${Date.now()}`,
+        name: `Terminal ${defaultTerminals.length + 1}`,
+        command: '',
+        enabled: true,
+      };
+      onUpdatePreviewTerminals([...defaultTerminals, newTerminal]);
+    } else if (mode === 'edit' && selectedProject) {
+      addProjectTerminal(selectedProject.id);
+    }
+  };
+
+  const handleRemoveTerminal = (terminalId: string) => {
+    if (mode === 'create' && onUpdatePreviewTerminals) {
+      const updatedTerminals = defaultTerminals.filter(t => t.id !== terminalId);
+      onUpdatePreviewTerminals(updatedTerminals);
+    } else if (mode === 'edit' && selectedProject) {
+      removeProjectTerminal(selectedProject.id, terminalId);
+    }
+  };
+
+  const handleResetToDefaults = () => {
+    const DEFAULT_PROJECT_TERMINALS: DefaultTerminalConfig[] = [
+      {
+        id: 'default-1',
+        name: 'Claude code',
+        command: '',
+        enabled: true,
+      },
+    ];
+    
+    if (mode === 'create' && onUpdatePreviewTerminals) {
+      onUpdatePreviewTerminals([...DEFAULT_PROJECT_TERMINALS]);
+    } else if (mode === 'edit' && selectedProject) {
+      resetProjectTerminalsToDefaults(selectedProject.id);
+    }
+  };
+
+  // Show message if no project is selected in edit mode
+  if (mode === 'edit' && !selectedProject) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center py-8">
+          <p className="text-sm" style={{ color: 'rgb(var(--color-muted-foreground))' }}>
+            Please select a project to configure terminal settings.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -37,7 +117,7 @@ export function TerminalSettings() {
         </div>
         
         <button
-          onClick={resetToDefaults}
+          onClick={handleResetToDefaults}
           className="px-3 py-1.5 text-sm rounded-md transition-colors flex items-center gap-2"
           style={{ 
             backgroundColor: 'rgb(var(--color-muted))',
@@ -101,7 +181,7 @@ export function TerminalSettings() {
               </div>
               
               <button
-                onClick={() => removeDefaultTerminal(terminal.id)}
+                onClick={() => handleRemoveTerminal(terminal.id)}
                 className="p-1 rounded transition-colors opacity-60 hover:opacity-100"
                 style={{ 
                   color: 'rgb(var(--color-destructive))'
@@ -150,7 +230,7 @@ export function TerminalSettings() {
       {/* Add Terminal Button */}
       <div className="pt-4 border-t" style={{ borderColor: 'rgb(var(--color-border))' }}>
         <button
-          onClick={addDefaultTerminal}
+          onClick={handleAddTerminal}
           className="w-full px-4 py-3 text-sm rounded-md transition-colors flex items-center justify-center gap-2"
           style={{ 
             backgroundColor: 'rgb(var(--color-primary))',
