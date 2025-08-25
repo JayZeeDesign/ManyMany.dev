@@ -222,9 +222,7 @@ class UpdateService {
             this.setState({ downloading: true, progress: 0 });
             break;
           case 'Progress':
-            console.log('[UpdateService] 📊 Download progress:', {
-              chunkLength: event.event === 'Progress' ? event.chunkLength : 0
-            });
+            console.log('[UpdateService] 📊 Download progress: chunk received');
             // For now, we'll show indeterminate progress since we don't have contentLength
             this.setState({ progress: 50 }); // Show 50% as indeterminate progress
             this.callbacks.onProgress?.(50);
