@@ -28,6 +28,7 @@ export const useUpdateStore = create<UpdateStore>((set, get) => {
       get().updateState(state);
     },
     onUpdateFound: () => {
+      console.log('[UpdateStore] Update found! Showing banner...');
       set({ showUpdateBanner: true });
     },
     onError: (error: string) => {
@@ -71,12 +72,15 @@ export const useUpdateStore = create<UpdateStore>((set, get) => {
     },
 
     checkForUpdates: async (silent = false) => {
+      console.log('[UpdateStore] Initiating update check...', { silent });
       try {
         const result = await updateService.checkForUpdates(silent);
+        console.log('[UpdateStore] Update check completed:', result);
         if (result !== null) {
           set({ lastChecked: new Date() });
         }
       } catch (error) {
+        console.error('[UpdateStore] Update check failed:', error);
         // Error handling is now done in updateService
         // Only log for debugging purposes
         if (!silent) {
@@ -86,11 +90,13 @@ export const useUpdateStore = create<UpdateStore>((set, get) => {
     },
 
     downloadAndInstall: async () => {
+      console.log('[UpdateStore] Starting download and install...');
       try {
         set({ showUpdateDialog: true, showUpdateBanner: false });
         await updateService.downloadAndInstall();
+        console.log('[UpdateStore] Download and install completed successfully');
       } catch (error) {
-        console.error('Failed to download and install update:', error);
+        console.error('[UpdateStore] Failed to download and install update:', error);
       }
     },
 

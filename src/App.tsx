@@ -146,7 +146,7 @@ function App() {
                   e.currentTarget.style.backgroundColor = 'transparent';
                 }
               }}
-              title={process.env.NODE_ENV === 'development' ? 'Updates (disabled in development)' : 'Check for updates'}
+              title="Check for updates"
             >
               <RefreshCw className={`w-4 h-4 ${checking ? 'animate-spin' : ''}`} />
               <span className="hidden sm:inline">{checking ? 'Checking...' : 'Updates'}</span>

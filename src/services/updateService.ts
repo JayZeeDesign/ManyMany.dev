@@ -62,16 +62,17 @@ class UpdateService {
 
   public async checkForUpdates(silent = false): Promise<UpdateResult | null> {
     if (this.state.checking) {
+      console.log('[UpdateService] Already checking for updates, skipping...');
       return null;
     }
 
-    // Skip update checks in development mode
-    if (this.isDevelopmentMode()) {
-      if (!silent) {
-        console.log('[UpdateService] Skipping update check in development mode');
-      }
-      return null;
-    }
+    // Allow update checks in development mode for testing
+    const isDev = this.isDevelopmentMode();
+    console.log('[UpdateService] Starting update check...', { 
+      silent, 
+      isDev, 
+      currentVersion: '0.1.1' // This will be the dev version
+    });
 
     try {
       this.setState({ 
@@ -82,7 +83,14 @@ class UpdateService {
         body: null 
       });
 
+      console.log('[UpdateService] Calling Tauri updater check...');
       const update = await check();
+      
+      console.log('[UpdateService] Update check result:', { 
+        hasUpdate: !!update, 
+        version: update?.version, 
+        body: update?.body 
+      });
       
       if (update) {
         this.currentUpdate = update;
@@ -91,6 +99,11 @@ class UpdateService {
           available: true,
           version: update.version,
           body: update.body || null,
+        });
+
+        console.log('[UpdateService] Update available!', {
+          version: update.version,
+          silent
         });
 
         if (!silent) {
@@ -104,21 +117,25 @@ class UpdateService {
           available: false,
         });
 
+        console.log('[UpdateService] No updates available');
         return { shouldUpdate: false, manifest: null };
       }
     } catch (error) {
       const errorMessage = this.getErrorMessage(error);
+      console.error('[UpdateService] Update check failed:', {
+        error: errorMessage,
+        rawError: error,
+        silent
+      });
+      
       this.setState({
         checking: false,
         error: errorMessage,
       });
 
-      // Only show errors for manual checks, suppress for automatic checks
-      if (!silent) {
+      // Always show errors in development mode for debugging
+      if (!silent || this.isDevelopmentMode()) {
         this.callbacks.onError?.(errorMessage);
-        console.error('[UpdateService] Update check failed:', error);
-      } else {
-        console.warn('[UpdateService] Silent update check failed:', errorMessage);
       }
 
       // Don't throw error for silent checks to prevent disrupting app startup
@@ -166,12 +183,18 @@ class UpdateService {
 
   public async downloadAndInstall(): Promise<void> {
     if (!this.currentUpdate) {
+      console.error('[UpdateService] No update available to download');
       throw new Error('No update available to download');
     }
 
     if (this.state.downloading || this.state.installing) {
+      console.log('[UpdateService] Download already in progress, skipping...');
       return;
     }
+
+    console.log('[UpdateService] Starting download and install...', {
+      version: this.currentUpdate.version
+    });
 
     try {
       this.setState({
@@ -183,16 +206,21 @@ class UpdateService {
 
       // Download and install with progress tracking
       await this.currentUpdate.downloadAndInstall((event) => {
+        console.log('[UpdateService] Download event:', event);
+        
         switch (event.event) {
           case 'Started':
+            console.log('[UpdateService] Download started');
             this.setState({ downloading: true, progress: 0 });
             break;
           case 'Progress':
+            console.log('[UpdateService] Download progress:', event.data);
             // For now, we'll show indeterminate progress since we don't have contentLength
             this.setState({ progress: 50 }); // Show 50% as indeterminate progress
             this.callbacks.onProgress?.(50);
             break;
           case 'Finished':
+            console.log('[UpdateService] Download finished, starting installation');
             this.setState({
               downloading: false,
               downloaded: true,
@@ -204,14 +232,16 @@ class UpdateService {
         }
       });
 
+      console.log('[UpdateService] Installation complete, preparing restart...');
       this.callbacks.onUpdateInstalled?.();
 
       // Auto-restart after successful installation
       setTimeout(async () => {
         try {
+          console.log('[UpdateService] Attempting to restart application...');
           await relaunch();
         } catch (error) {
-          console.error('Failed to relaunch app:', error);
+          console.error('[UpdateService] Failed to relaunch app:', error);
           this.setState({
             installing: false,
             error: 'Update installed but failed to restart. Please restart manually.',
