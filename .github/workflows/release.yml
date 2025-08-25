@@ -14,6 +14,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Debug environment variables
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          echo "=== DEBUGGING SIGNING SETUP ==="
+          echo "TAURI_SIGNING_PRIVATE_KEY length: ${#TAURI_SIGNING_PRIVATE_KEY}"
+          echo "TAURI_SIGNING_PRIVATE_KEY_PASSWORD length: ${#TAURI_SIGNING_PRIVATE_KEY_PASSWORD}"
+          echo "First 50 chars of key: ${TAURI_SIGNING_PRIVATE_KEY:0:50}..."
+          echo "Key ends with: ...${TAURI_SIGNING_PRIVATE_KEY: -20}"
+          echo "Password is set: $([ -n "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" ] && echo "YES" || echo "NO")"
+          
       - name: Rust setup
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -33,6 +45,32 @@ jobs:
       - name: Install frontend dependencies
         run: npm install
 
+      - name: Verify signing setup before build
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          echo "=== TESTING SIGNING BEFORE BUILD ==="
+          
+          # Create a temporary key file to test
+          echo "$TAURI_SIGNING_PRIVATE_KEY" > /tmp/test_key.key
+          echo "✅ Key file created successfully"
+          
+          # Test if we can use the key with tauri signer
+          echo "test content for signing" > /tmp/test.txt
+          echo "🔑 Attempting manual signing test..."
+          
+          if tauri signer sign /tmp/test.txt -f /tmp/test_key.key -p "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD"; then
+            echo "✅ Manual signing test SUCCEEDED"
+            ls -la /tmp/test.txt*
+          else
+            echo "❌ Manual signing test FAILED"
+            echo "This indicates the private key or password is incorrect"
+          fi
+          
+          # Clean up
+          rm -f /tmp/test_key.key /tmp/test.txt*
+
       - name: Build the app
         uses: tauri-apps/tauri-action@v0
         env:
@@ -41,23 +79,46 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: 'ManyMany.dev v__VERSION__'
+          releaseName: 'ManyMany.dev v__VERSION__ (Debug Build)'
           releaseBody: |
-            ## What's New
-            - Enhanced automatic update system with improved UI notifications
-            - Better error handling and progress tracking for updates
-            - Development mode testing support with detailed logging
-            - Proper code signing for secure automatic updates
-            - ARM-only build for reliable releases
-
-            ## Installation
-            Download the DMG file for **Apple Silicon Macs (M1/M2/M3/M4)**
+            ## Debug Release v__VERSION__
             
-            *Note: Intel Mac support temporarily disabled due to build issues*
-
-            ## Automatic Updates
-            This version includes an automatic update system that will notify you when new versions are available.
+            This is a debug build to test the signing and update system.
+            
+            **What we're testing:**
+            - Proper code signing with corrected key pair
+            - Automatic generation of latest.json with real signatures
+            - End-to-end update functionality
+            
+            **Technical details:**
+            - ARM-only build for Apple Silicon Macs
+            - Enhanced logging for signing diagnostics
+            - Version: __VERSION__
           releaseDraft: false
           prerelease: false
           args: --target aarch64-apple-darwin
           includeUpdaterJson: true
+
+      - name: Debug build artifacts and signing results
+        run: |
+          echo "=== POST-BUILD ARTIFACT ANALYSIS ==="
+          
+          echo "🔍 Searching for signature files..."
+          find src-tauri/target -name "*.sig" -ls || echo "❌ No .sig files found"
+          
+          echo "🔍 Searching for tar.gz files..."
+          find src-tauri/target -name "*.tar.gz*" -ls
+          
+          echo "🔍 Checking bundle directory structure..."
+          find src-tauri/target -type f -name "*ManyMany*" | head -20
+          
+          echo "🔍 Looking for any signing-related files..."
+          find src-tauri/target -name "*sign*" -o -name "*.key" -o -name "*.pub" | head -10
+          
+          echo "🔍 Directory structure of release bundle..."
+          ls -la src-tauri/target/aarch64-apple-darwin/release/bundle/ || echo "Bundle directory not found"
+          
+          if [ -d "src-tauri/target/aarch64-apple-darwin/release/bundle/macos" ]; then
+            echo "📁 macOS bundle contents:"
+            ls -la src-tauri/target/aarch64-apple-darwin/release/bundle/macos/
+          fi
