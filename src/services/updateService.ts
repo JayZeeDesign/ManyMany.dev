@@ -193,7 +193,10 @@ class UpdateService {
     }
 
     console.log('[UpdateService] Starting download and install...', {
-      version: this.currentUpdate.version
+      version: this.currentUpdate.version,
+      currentVersion: this.currentUpdate.currentVersion,
+      body: this.currentUpdate.body,
+      date: this.currentUpdate.date
     });
 
     try {
@@ -205,22 +208,33 @@ class UpdateService {
       });
 
       // Download and install with progress tracking
+      console.log('[UpdateService] About to call downloadAndInstall...');
+      
       await this.currentUpdate.downloadAndInstall((event) => {
-        console.log('[UpdateService] Download event:', event);
+        console.log('[UpdateService] Download event received:', {
+          event: event.event,
+          data: event.data,
+          timestamp: new Date().toISOString()
+        });
         
         switch (event.event) {
           case 'Started':
-            console.log('[UpdateService] Download started');
+            console.log('[UpdateService] ✅ Download started successfully');
             this.setState({ downloading: true, progress: 0 });
             break;
           case 'Progress':
-            console.log('[UpdateService] Download progress:', event.data);
+            console.log('[UpdateService] 📊 Download progress:', {
+              chunkLength: event.data?.chunkLength,
+              contentLength: event.data?.contentLength,
+              percentage: event.data?.contentLength ? 
+                Math.round((event.data.chunkLength / event.data.contentLength) * 100) : 'unknown'
+            });
             // For now, we'll show indeterminate progress since we don't have contentLength
             this.setState({ progress: 50 }); // Show 50% as indeterminate progress
             this.callbacks.onProgress?.(50);
             break;
           case 'Finished':
-            console.log('[UpdateService] Download finished, starting installation');
+            console.log('[UpdateService] ✅ Download completed, starting installation...');
             this.setState({
               downloading: false,
               downloaded: true,
@@ -232,7 +246,11 @@ class UpdateService {
         }
       });
 
-      console.log('[UpdateService] Installation complete, preparing restart...');
+      console.log('[UpdateService] ✅ Installation completed successfully!', {
+        version: this.currentUpdate?.version,
+        timestamp: new Date().toISOString(),
+        state: this.state
+      });
       this.callbacks.onUpdateInstalled?.();
 
       // Auto-restart after successful installation
@@ -250,15 +268,39 @@ class UpdateService {
       }, 1000);
 
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to download and install update';
+      console.error('[UpdateService] ❌ Download/Install failed with detailed error:', {
+        error: error,
+        errorType: error instanceof Error ? error.constructor.name : typeof error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : 'No stack trace',
+        timestamp: new Date().toISOString(),
+        updateVersion: this.currentUpdate?.version,
+        currentState: this.state
+      });
+
+      // Try to identify specific error types
+      let userFriendlyMessage = 'Failed to download and install update';
+      const errorMsg = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+      
+      if (errorMsg.includes('signature') || errorMsg.includes('verify') || errorMsg.includes('invalid')) {
+        console.error('[UpdateService] 🔐 Signature verification likely failed - this could be due to fake signatures in latest.json');
+        userFriendlyMessage = 'Update signature verification failed';
+      } else if (errorMsg.includes('network') || errorMsg.includes('download') || errorMsg.includes('fetch')) {
+        console.error('[UpdateService] 🌐 Network/download error');
+        userFriendlyMessage = 'Failed to download update files';
+      } else if (errorMsg.includes('permission') || errorMsg.includes('access')) {
+        console.error('[UpdateService] 🔒 Permission error during installation');
+        userFriendlyMessage = 'Permission denied during update installation';
+      }
+      
       this.setState({
         downloading: false,
         downloaded: false,
         installing: false,
-        error: errorMessage,
+        error: userFriendlyMessage,
       });
       
-      this.callbacks.onError?.(errorMessage);
+      this.callbacks.onError?.(userFriendlyMessage);
       throw error;
     }
   }

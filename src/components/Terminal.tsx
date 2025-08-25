@@ -103,18 +103,14 @@ export const Terminal = React.forwardRef<{ focus: () => void }, TerminalProps>((
     const initialFit = () => {
       if (terminalRef.current && fitAddon) {
         const rect = terminalRef.current.getBoundingClientRect();
-        console.log(`[Terminal] Initial fit attempt for ${name}: container ${rect.width}x${rect.height}`);
         
         if (rect.width > 0 && rect.height > 0) {
           try {
             fitAddon.fit();
-            const { cols, rows } = xterm;
-            console.log(`[Terminal] Initial fit successful for ${name}: ${cols}x${rows}`);
           } catch (error) {
             console.warn('Failed to fit terminal on initial load:', error);
           }
         } else {
-          console.warn(`[Terminal] Delaying initial fit - invalid dimensions: ${rect.width}x${rect.height}`);
           // Retry with longer delay if container isn't ready
           setTimeout(initialFit, 200);
         }
