@@ -94,74 +94,63 @@ jobs:
             echo "Character at offset 464: $CHAR_AT_464"
           fi
           
-          echo "=== ATTEMPTING TO FIX BASE64 PADDING ==="
-          # Method 1: Add proper padding
-          echo "Method 1: Add proper base64 padding..."
-          PADDED_KEY="$TAURI_SIGNING_PRIVATE_KEY"
-          if [ $REMAINDER -eq 1 ]; then
-            PADDED_KEY="${TAURI_SIGNING_PRIVATE_KEY}==="
-          elif [ $REMAINDER -eq 2 ]; then
-            PADDED_KEY="${TAURI_SIGNING_PRIVATE_KEY}=="
-          elif [ $REMAINDER -eq 3 ]; then
-            PADDED_KEY="${TAURI_SIGNING_PRIVATE_KEY}="
-          fi
-          echo "Padded key length: ${#PADDED_KEY}"
-          echo "Padded key ends with: ...${PADDED_KEY: -10}"
+          echo "=== FIXING THE TRAILING NEWLINE ==="
+          # Method 1: Remove trailing newline using tr
+          echo "Method 1: Strip trailing newline with tr..."
+          CLEAN_KEY_1=$(echo -n "$TAURI_SIGNING_PRIVATE_KEY" | tr -d '\n\r')
+          echo "Clean key 1 length: ${#CLEAN_KEY_1}"
+          echo "Clean key 1 ends with: ...${CLEAN_KEY_1: -10}"
           
-          # Method 2: Remove potentially corrupt ending and re-pad
-          echo "Method 2: Truncate to valid base64 length and re-pad..."
-          TRUNCATED_LENGTH=$((KEY_LENGTH - REMAINDER))
-          TRUNCATED_KEY="${TAURI_SIGNING_PRIVATE_KEY:0:$TRUNCATED_LENGTH}"
-          if [ $TRUNCATED_LENGTH -gt 0 ]; then
-            # Add padding to make it multiple of 4
-            case $((TRUNCATED_LENGTH % 4)) in
-              1) CLEAN_KEY_2="${TRUNCATED_KEY}===" ;;
-              2) CLEAN_KEY_2="${TRUNCATED_KEY}==" ;;
-              3) CLEAN_KEY_2="${TRUNCATED_KEY}=" ;;
-              *) CLEAN_KEY_2="$TRUNCATED_KEY" ;;
-            esac
-          else
-            CLEAN_KEY_2="FAILED"
-          fi
-          echo "Truncated and padded key length: ${#CLEAN_KEY_2}"
+          # Method 2: Remove trailing newline using parameter expansion
+          echo "Method 2: Strip trailing newline with parameter expansion..."
+          CLEAN_KEY_2="${TAURI_SIGNING_PRIVATE_KEY%$'\n'}"
+          CLEAN_KEY_2="${CLEAN_KEY_2%$'\r'}"
+          echo "Clean key 2 length: ${#CLEAN_KEY_2}"
+          echo "Clean key 2 ends with: ...${CLEAN_KEY_2: -10}"
+          
+          # Method 3: Use printf to strip newlines
+          echo "Method 3: Strip trailing newline with printf..."
+          CLEAN_KEY_3=$(printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" | tr -d '\n\r')
+          echo "Clean key 3 length: ${#CLEAN_KEY_3}"
+          echo "Clean key 3 ends with: ...${CLEAN_KEY_3: -10}"
           
           echo "=== TESTING CLEANED KEYS ==="
           
-          # Test Method 1: Padded key
-          if [ "$PADDED_KEY" != "FAILED" ] && [ ${#PADDED_KEY} -gt 100 ]; then
-            echo "Testing padded key method..."
-            echo "$PADDED_KEY" > "/tmp/padded_key.key"
-            echo "test content padded" > "/tmp/test_padded.txt"
+          # Test all three cleaning methods
+          for method in 1 2 3; do
+            eval "TEST_KEY=\$CLEAN_KEY_$method"
             
-            if npx tauri signer sign "/tmp/test_padded.txt" -f "/tmp/padded_key.key" -p "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" 2>&1; then
-              echo "✅ PADDED KEY METHOD SUCCEEDED!"
-              echo "🎯 USE THIS PADDED KEY IN GITHUB SECRETS:"
-              echo "$PADDED_KEY"
-              echo "🎯 END OF PADDED KEY"
+            if [ "$TEST_KEY" != "FAILED" ] && [ ${#TEST_KEY} -gt 100 ]; then
+              echo "Testing clean key method $method..."
+              echo "$TEST_KEY" > "/tmp/clean_key_$method.key"
+              echo "test content method $method" > "/tmp/test_$method.txt"
+              
+              echo "Attempting to sign with method $method key..."
+              if npx tauri signer sign "/tmp/test_$method.txt" -f "/tmp/clean_key_$method.key" -p "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" 2>&1; then
+                echo "✅ CLEAN KEY METHOD $method SUCCEEDED!"
+                echo ""
+                echo "🎯 SUCCESS! USE THIS CLEANED KEY IN GITHUB SECRETS:"
+                echo "======================================================"
+                echo "$TEST_KEY"
+                echo "======================================================"
+                echo "🎯 END OF WORKING KEY - COPY THE ABOVE!"
+                echo ""
+                
+                # Also test that we can decode it properly
+                echo "🔍 Verification: Testing base64 decode..."
+                if echo "$TEST_KEY" | base64 -d >/dev/null 2>&1; then
+                  echo "✅ Key decodes successfully!"
+                else
+                  echo "❌ Warning: Key still has decode issues"
+                fi
+                break
+              else
+                echo "❌ Clean key method $method failed"
+              fi
             else
-              echo "❌ Padded key method failed"
+              echo "Clean key method $method is invalid (length: ${#TEST_KEY})"
             fi
-          else
-            echo "Padded key is invalid"
-          fi
-          
-          # Test Method 2: Truncated and re-padded key  
-          if [ "$CLEAN_KEY_2" != "FAILED" ] && [ ${#CLEAN_KEY_2} -gt 100 ]; then
-            echo "Testing truncated key method..."
-            echo "$CLEAN_KEY_2" > "/tmp/truncated_key.key"
-            echo "test content truncated" > "/tmp/test_truncated.txt"
-            
-            if npx tauri signer sign "/tmp/test_truncated.txt" -f "/tmp/truncated_key.key" -p "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" 2>&1; then
-              echo "✅ TRUNCATED KEY METHOD SUCCEEDED!"
-              echo "🎯 USE THIS TRUNCATED KEY IN GITHUB SECRETS:"
-              echo "$CLEAN_KEY_2"
-              echo "🎯 END OF TRUNCATED KEY"
-            else
-              echo "❌ Truncated key method failed"
-            fi
-          else
-            echo "Truncated key is invalid"
-          fi
+          done
           
           echo "=== ORIGINAL KEY TEST (for comparison) ==="
           echo "$TAURI_SIGNING_PRIVATE_KEY" > /tmp/original_key.key
