@@ -53,7 +53,20 @@ jobs:
         with:
           tagName: ${{ github.ref_name }} # This only works if your workflow triggers on new tags.
           releaseName: 'ManyMany.dev v__VERSION__' # tauri-action replaces \_\_VERSION\_\_ with the app version.
-          releaseBody: 'See the assets to download and install this version.'
+          releaseBody: |
+            ## What's New
+            - Enhanced automatic update system with improved UI notifications
+            - Better error handling and progress tracking for updates
+            - Development mode testing support with detailed logging
+            
+            ## Installation
+            Download the appropriate installer for your platform:
+            - **macOS**: Download the `.dmg` file
+            - **Windows**: Download the `.exe` file  
+            - **Linux**: Download the `.deb` or `.AppImage` file
+            
+            ## Automatic Updates
+            This version includes an automatic update system that will notify you when new versions are available.
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
