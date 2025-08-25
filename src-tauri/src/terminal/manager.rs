@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tauri::AppHandle;
@@ -6,18 +7,47 @@ use uuid::Uuid;
 
 use crate::terminal::task::{TerminalTask, CreateTerminalRequest};
 use crate::terminal::task::terminal_task as run_terminal_task;
+use crate::terminal::environment::EnvironmentInfo;
 
 #[derive(Debug)]
 pub struct TerminalManager {
     terminals: HashMap<String, TerminalTask>,
     tasks: HashMap<String, JoinHandle<Result<(), String>>>,
+    env_info: Arc<EnvironmentInfo>,
 }
 
 impl TerminalManager {
     pub fn new() -> Self {
+        // Detect environment once at startup
+        let env_info = Arc::new(EnvironmentInfo::detect());
+        
+        // Log discovered environment for debugging
+        println!("Terminal Environment Detected:");
+        println!("  Shell: {}", env_info.shell);
+        println!("  PATH: {}", env_info.get_path());
+        println!("  Dev Tools: {:?}", env_info.dev_tools);
+        
+        // Log authentication variables for debugging
+        let auth_vars: Vec<_> = env_info.env_vars.iter()
+            .filter(|(key, _)| {
+                key.contains("CLAUDE") || key.contains("ANTHROPIC") || 
+                key.contains("SSH_") || key.ends_with("_API_KEY") ||
+                key.ends_with("_TOKEN") || key.ends_with("_AUTH")
+            })
+            .collect();
+        
+        if !auth_vars.is_empty() {
+            println!("  Authentication Variables Found:");
+            for (key, value) in auth_vars {
+                // Don't log full values for security, just show they exist
+                println!("    {}: {}", key, if value.len() > 20 { "[REDACTED]" } else { value });
+            }
+        }
+        
         Self {
             terminals: HashMap::new(),
             tasks: HashMap::new(),
+            env_info,
         }
     }
 
@@ -43,8 +73,9 @@ impl TerminalManager {
         
         // Spawn independent async task for this terminal
         let task_terminal_id = terminal_id.clone();
+        let env_info_clone = self.env_info.clone();
         let handle = tokio::spawn(async move {
-            run_terminal_task(task_terminal_id, request, input_rx, app).await
+            run_terminal_task(task_terminal_id, request, input_rx, app, env_info_clone).await
         });
         
         // Store terminal and task

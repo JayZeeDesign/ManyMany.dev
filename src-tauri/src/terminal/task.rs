@@ -1,8 +1,11 @@
 use std::io::Write;
+use std::sync::Arc;
 use tokio::sync::mpsc;
 use tauri::{AppHandle, Emitter};
 use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 use serde::{Deserialize, Serialize};
+
+use crate::terminal::environment::EnvironmentInfo;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateTerminalRequest {
@@ -52,6 +55,7 @@ pub async fn terminal_task(
     request: CreateTerminalRequest,
     input_rx: mpsc::UnboundedReceiver<String>,
     app: AppHandle,
+    env_info: Arc<EnvironmentInfo>,
 ) -> Result<(), String> {
     
     // Create PTY system
@@ -67,12 +71,34 @@ pub async fn terminal_task(
         })
         .map_err(|e| format!("Failed to create PTY: {}", e))?;
     
-    // Set up shell command
+    // Set up shell command with detected environment
     let mut cmd = if cfg!(windows) {
         CommandBuilder::new("cmd.exe")
     } else {
-        CommandBuilder::new("bash")
+        // Use user's detected shell or fallback to bash
+        let shell_path = if env_info.shell == "zsh" {
+            "/bin/zsh"
+        } else if env_info.shell == "fish" {
+            "/usr/local/bin/fish"
+        } else {
+            "/bin/bash"
+        };
+        
+        // Check if the detected shell exists, fallback to bash
+        let final_shell = if std::path::Path::new(shell_path).exists() {
+            shell_path
+        } else {
+            "/bin/bash"
+        };
+        
+        println!("Using shell: {}", final_shell);
+        CommandBuilder::new(final_shell)
     };
+    
+    // Add enhanced environment variables
+    for (key, value) in env_info.get_env_for_spawn() {
+        cmd.env(key, value);
+    }
     
     // Validate working directory
     let working_dir = std::path::Path::new(&request.working_directory);
