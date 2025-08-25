@@ -94,30 +94,42 @@ jobs:
             echo "Character at offset 464: $CHAR_AT_464"
           fi
           
-          echo "=== FIXING THE TRAILING NEWLINE ==="
-          # Method 1: Remove trailing newline using tr
-          echo "Method 1: Strip trailing newline with tr..."
-          CLEAN_KEY_1=$(echo -n "$TAURI_SIGNING_PRIVATE_KEY" | tr -d '\n\r')
+          echo "=== AGGRESSIVE NEWLINE REMOVAL ==="
+          
+          # Method 1: Remove ALL occurrences of newline characters
+          echo "Method 1: Remove all newline/carriage return characters..."
+          CLEAN_KEY_1=$(echo "$TAURI_SIGNING_PRIVATE_KEY" | tr -d '\n\r\t ')
           echo "Clean key 1 length: ${#CLEAN_KEY_1}"
           echo "Clean key 1 ends with: ...${CLEAN_KEY_1: -10}"
           
-          # Method 2: Remove trailing newline using parameter expansion
-          echo "Method 2: Strip trailing newline with parameter expansion..."
-          CLEAN_KEY_2="${TAURI_SIGNING_PRIVATE_KEY%$'\n'}"
-          CLEAN_KEY_2="${CLEAN_KEY_2%$'\r'}"
+          # Method 2: Use sed to remove control characters
+          echo "Method 2: Remove control characters with sed..."
+          CLEAN_KEY_2=$(echo "$TAURI_SIGNING_PRIVATE_KEY" | sed 's/[[:cntrl:]]//g')
           echo "Clean key 2 length: ${#CLEAN_KEY_2}"
           echo "Clean key 2 ends with: ...${CLEAN_KEY_2: -10}"
           
-          # Method 3: Use printf to strip newlines
-          echo "Method 3: Strip trailing newline with printf..."
-          CLEAN_KEY_3=$(printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" | tr -d '\n\r')
+          # Method 3: Manually truncate at 463 characters (remove the last character which is the newline)
+          echo "Method 3: Truncate to 463 characters to remove trailing newline..."
+          CLEAN_KEY_3="${TAURI_SIGNING_PRIVATE_KEY:0:463}"
           echo "Clean key 3 length: ${#CLEAN_KEY_3}"
           echo "Clean key 3 ends with: ...${CLEAN_KEY_3: -10}"
           
+          # Verify the truncation worked by checking the hex
+          echo "Verifying truncation - last 4 chars of key 3 as hex:"
+          echo "${CLEAN_KEY_3: -4}" | xxd
+          
+          # Method 4: Use hexdump and xxd to process byte-by-byte
+          echo "Method 4: Hex-level cleaning..."
+          CLEAN_KEY_4=$(echo "$TAURI_SIGNING_PRIVATE_KEY" | xxd -p | tr -d '\n' | sed 's/0a$//' | xxd -r -p | base64 -w 0 2>/dev/null || echo "FAILED")
+          echo "Clean key 4 length: ${#CLEAN_KEY_4}"
+          if [ "$CLEAN_KEY_4" != "FAILED" ]; then
+            echo "Clean key 4 ends with: ...${CLEAN_KEY_4: -10}"
+          fi
+          
           echo "=== TESTING CLEANED KEYS ==="
           
-          # Test all three cleaning methods
-          for method in 1 2 3; do
+          # Test all four cleaning methods
+          for method in 1 2 3 4; do
             eval "TEST_KEY=\$CLEAN_KEY_$method"
             
             if [ "$TEST_KEY" != "FAILED" ] && [ ${#TEST_KEY} -gt 100 ]; then
