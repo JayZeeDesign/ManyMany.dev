@@ -15,8 +15,6 @@ jobs:
         include:
           - platform: 'macos-latest' # Apple Silicon runner for ARM builds
             args: '--target aarch64-apple-darwin'
-          - platform: 'macos-13' # Intel runner for x86_64 builds  
-            args: '--target x86_64-apple-darwin'
 
     runs-on: ${{ matrix.platform }}
     steps:
