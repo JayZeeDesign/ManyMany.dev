@@ -45,31 +45,71 @@ jobs:
       - name: Install frontend dependencies
         run: npm install
 
-      - name: Verify signing setup before build
+      - name: Debug and clean private key
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
-          echo "=== TESTING SIGNING BEFORE BUILD ==="
+          echo "=== COMPREHENSIVE KEY ANALYSIS ==="
+          echo "Key length: ${#TAURI_SIGNING_PRIVATE_KEY}"
+          echo "Password length: ${#TAURI_SIGNING_PRIVATE_KEY_PASSWORD}"
           
-          # Create a temporary key file to test
-          echo "$TAURI_SIGNING_PRIVATE_KEY" > /tmp/test_key.key
-          echo "✅ Key file created successfully"
+          echo "=== RAW KEY INSPECTION ==="
+          echo "First 100 chars: ${TAURI_SIGNING_PRIVATE_KEY:0:100}"
+          echo "Last 50 chars: ${TAURI_SIGNING_PRIVATE_KEY: -50}"
           
-          # Test if we can use the key with tauri signer
-          echo "test content for signing" > /tmp/test.txt
-          echo "🔑 Attempting manual signing test..."
-          
-          if npx tauri signer sign /tmp/test.txt -f /tmp/test_key.key -p "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD"; then
-            echo "✅ Manual signing test SUCCEEDED"
-            ls -la /tmp/test.txt*
-          else
-            echo "❌ Manual signing test FAILED"
-            echo "This indicates the private key or password is incorrect"
+          echo "=== CHARACTER ANALYSIS AROUND OFFSET 464 ==="
+          if [ ${#TAURI_SIGNING_PRIVATE_KEY} -gt 470 ]; then
+            echo "Characters 460-470:"
+            echo "${TAURI_SIGNING_PRIVATE_KEY:460:10}" | od -c
+            echo "Characters as hex:"
+            echo "${TAURI_SIGNING_PRIVATE_KEY:460:10}" | xxd
           fi
           
+          echo "=== LOOKING FOR EMBEDDED NEWLINES ==="
+          echo "Checking for \\n characters in key:"
+          echo "$TAURI_SIGNING_PRIVATE_KEY" | grep -o $'\n' | wc -l || echo "grep failed"
+          
+          echo "=== ATTEMPTING TO CLEAN KEY ==="
+          # Method 1: Remove all whitespace and re-encode
+          echo "Method 1: Strip whitespace and decode/re-encode..."
+          CLEAN_KEY_1=$(echo "$TAURI_SIGNING_PRIVATE_KEY" | tr -d '\n\r\t ' | base64 -d 2>/dev/null | base64 2>/dev/null || echo "FAILED")
+          echo "Clean key 1 result: ${CLEAN_KEY_1:0:50}... (length: ${#CLEAN_KEY_1})"
+          
+          # Method 2: Direct character replacement  
+          echo "Method 2: Replace problematic sequences..."
+          CLEAN_KEY_2=$(echo "$TAURI_SIGNING_PRIVATE_KEY" | sed 's/Cl//g' | tr -d '\n\r\t ')
+          echo "Clean key 2 result: ${CLEAN_KEY_2:0:50}... (length: ${#CLEAN_KEY_2})"
+          
+          echo "=== TESTING CLEANED KEYS ==="
+          for i in 1 2; do
+            eval "TEST_KEY=\$CLEAN_KEY_$i"
+            if [ "$TEST_KEY" != "FAILED" ] && [ ${#TEST_KEY} -gt 100 ]; then
+              echo "Testing cleaned key method $i..."
+              echo "$TEST_KEY" > "/tmp/clean_key_$i.key"
+              echo "test content" > "/tmp/test_$i.txt"
+              
+              if npx tauri signer sign "/tmp/test_$i.txt" -f "/tmp/clean_key_$i.key" -p "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" 2>&1; then
+                echo "✅ CLEANED KEY METHOD $i SUCCEEDED!"
+                echo "🎯 USE THIS KEY IN GITHUB SECRETS:"
+                echo "$TEST_KEY"
+                echo "🎯 END OF CLEAN KEY"
+                break
+              else
+                echo "❌ Cleaned key method $i failed"
+              fi
+            else
+              echo "Cleaned key method $i is invalid"
+            fi
+          done
+          
+          echo "=== ORIGINAL KEY TEST (for comparison) ==="
+          echo "$TAURI_SIGNING_PRIVATE_KEY" > /tmp/original_key.key
+          echo "test content original" > /tmp/test_original.txt
+          npx tauri signer sign /tmp/test_original.txt -f /tmp/original_key.key -p "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" 2>&1 || echo "Original key failed as expected"
+          
           # Clean up
-          rm -f /tmp/test_key.key /tmp/test.txt*
+          rm -f /tmp/*_key*.key /tmp/test*.txt
 
       - name: Build the app
         uses: tauri-apps/tauri-action@v0
