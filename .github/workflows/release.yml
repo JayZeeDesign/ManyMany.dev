@@ -9,25 +9,15 @@ jobs:
   release:
     permissions:
       contents: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: 'macos-latest' # for Arm based macs (M1 and above).
-            args: '--target aarch64-apple-darwin'
-          - platform: 'macos-latest' # for Intel based macs.
-            args: '--target x86_64-apple-darwin'
-
-    runs-on: ${{ matrix.platform }}
+    runs-on: macos-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        
+
       - name: Rust setup
         uses: dtolnay/rust-toolchain@stable
         with:
-          # Those targets are only used on macos runners so it's in an `if` to slightly speed up windows and linux builds.
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -38,11 +28,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 'lts/*'
-          cache: 'npm' # Set this to npm, yarn or pnpm.
+          cache: 'npm'
 
       - name: Install frontend dependencies
-        # If you don't have `beforeBuildCommand` configured you may want to build your frontend here too.
-        run: npm install # change this to npm, yarn or pnpm.
+        run: npm install
 
       - name: Build the app
         uses: tauri-apps/tauri-action@v0
@@ -51,23 +40,21 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: ${{ github.ref_name }} # This only works if your workflow triggers on new tags.
-          releaseName: 'ManyMany.dev v__VERSION__' # tauri-action replaces \_\_VERSION\_\_ with the app version.
+          tagName: ${{ github.ref_name }}
+          releaseName: 'ManyMany.dev v__VERSION__'
           releaseBody: |
             ## What's New
             - Enhanced automatic update system with improved UI notifications
             - Better error handling and progress tracking for updates
             - Development mode testing support with detailed logging
-            
+            - Universal binary support for both Intel and Apple Silicon Macs
+
             ## Installation
-            Download the appropriate installer for your platform:
-            - **macOS**: Download the `.dmg` file
-            - **Windows**: Download the `.exe` file  
-            - **Linux**: Download the `.deb` or `.AppImage` file
-            
+            Download the universal `.dmg` file that works on both Intel and Apple Silicon Macs
+
             ## Automatic Updates
             This version includes an automatic update system that will notify you when new versions are available.
           releaseDraft: false
           prerelease: false
-          args: ${{ matrix.args }}
+          args: --target universal-apple-darwin
           includeUpdaterJson: true
