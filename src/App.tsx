@@ -4,16 +4,38 @@ import { Sidebar } from './components/Sidebar';
 import { ProjectForm } from './components/ProjectForm';
 import { WorktreeView } from './components/WorktreeView';
 import { FileChangesPanel } from './components/FileChangesPanel';
+import { UpdateBanner } from './components/UpdateBanner';
+import { UpdateDialog } from './components/UpdateDialog';
 import { useProjectStore } from './stores/projectStore';
-import { FolderGit2, GitBranch, ChevronRight, ChevronDown, Folder, Code, FileText } from 'lucide-react';
+import { useUpdateStore } from './stores/updateStore';
+import { FolderGit2, GitBranch, ChevronRight, ChevronDown, Folder, Code, FileText, RefreshCw } from 'lucide-react';
 
 function App() {
   const { selectedProjectId, selectedWorktreeId, getSelectedProject, getSelectedWorktree, selectWorktree, showFileChangesPanel, toggleFileChangesPanel } = useProjectStore();
+  const { checkForUpdates, autoCheckEnabled, checking } = useUpdateStore();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   
   const selectedProject = getSelectedProject();
   const selectedWorktree = getSelectedWorktree();
+
+  // Check for updates on startup
+  useEffect(() => {
+    const performUpdateCheck = async () => {
+      if (autoCheckEnabled) {
+        try {
+          // Wait a bit after app startup before checking
+          setTimeout(async () => {
+            await checkForUpdates(true); // silent check
+          }, 3000);
+        } catch (error) {
+          console.error('Auto update check failed:', error);
+        }
+      }
+    };
+
+    performUpdateCheck();
+  }, [checkForUpdates, autoCheckEnabled]);
   
   // Handle clicking outside dropdown to close it
   useEffect(() => {
@@ -43,6 +65,16 @@ function App() {
     }
   };
   
+  // Handle manual update check
+  const handleCheckForUpdates = async () => {
+    setIsDropdownOpen(false);
+    try {
+      await checkForUpdates(false); // non-silent check
+    } catch (error) {
+      console.error('Manual update check failed:', error);
+    }
+  };
+
   // Helper function to extract worktree name from path
   const getWorktreeName = (worktreePath: string) => {
     const pathParts = worktreePath.split('/');
@@ -56,6 +88,8 @@ function App() {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col">
+        {/* Update Banner */}
+        <UpdateBanner />
         {/* Header with Breadcrumb Navigation */}
         <div className="min-h-12 h-12 flex items-center justify-between px-6 titlebar flex-shrink-0" style={{ backgroundColor: 'rgb(var(--color-card))', borderBottom: '1px solid rgb(var(--color-border))' }}>
           <div className="flex items-center space-x-2">
@@ -91,8 +125,35 @@ function App() {
           </div>
           
           {/* Action Buttons */}
-          {selectedWorktree && (
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
+            {/* Update Check Button - Always visible */}
+            <button
+              onClick={handleCheckForUpdates}
+              disabled={checking}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md transition-all disabled:opacity-50"
+              style={{ 
+                backgroundColor: 'transparent',
+                color: 'rgb(var(--color-muted-foreground))',
+                border: '1px solid rgb(var(--color-border))'
+              }}
+              onMouseEnter={(e) => {
+                if (!checking) {
+                  e.currentTarget.style.backgroundColor = 'rgb(var(--color-muted))';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!checking) {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                }
+              }}
+              title={process.env.NODE_ENV === 'development' ? 'Updates (disabled in development)' : 'Check for updates'}
+            >
+              <RefreshCw className={`w-4 h-4 ${checking ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">{checking ? 'Checking...' : 'Updates'}</span>
+            </button>
+
+            {selectedWorktree && (
+              <>
               <button
                 onClick={toggleFileChangesPanel}
                 className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md transition-all"
@@ -200,12 +261,41 @@ function App() {
                         <Code className="w-4 h-4" />
                         VS Code
                       </button>
+
+                      {/* Separator */}
+                      <div 
+                        className="my-1 h-px"
+                        style={{ backgroundColor: 'rgb(var(--color-border))' }}
+                      />
+
+                      <button
+                        onClick={handleCheckForUpdates}
+                        disabled={checking}
+                        className="w-full px-3 py-2 text-sm text-left flex items-center gap-3 transition-colors disabled:opacity-50"
+                        style={{ color: 'rgb(var(--color-popover-foreground))' }}
+                        onMouseEnter={(e) => {
+                          if (!checking) {
+                            e.currentTarget.style.backgroundColor = 'rgb(var(--color-accent))';
+                            e.currentTarget.style.color = 'rgb(var(--color-accent-foreground))';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!checking) {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                            e.currentTarget.style.color = 'rgb(var(--color-popover-foreground))';
+                          }
+                        }}
+                      >
+                        <RefreshCw className={`w-4 h-4 ${checking ? 'animate-spin' : ''}`} />
+                        {checking ? 'Checking...' : 'Check for Updates'}
+                      </button>
                     </div>
                   </div>
                 )}
               </div>
-            </div>
-          )}
+              </>
+            )}
+          </div>
         </div>
 
         {/* Content Area */}
@@ -254,6 +344,9 @@ function App() {
           <FileChangesPanel />
         </div>
       </div>
+      
+      {/* Update Dialog */}
+      <UpdateDialog />
     </div>
   );
 }
