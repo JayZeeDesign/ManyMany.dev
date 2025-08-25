@@ -213,7 +213,6 @@ class UpdateService {
       await this.currentUpdate.downloadAndInstall((event) => {
         console.log('[UpdateService] Download event received:', {
           event: event.event,
-          data: event.data,
           timestamp: new Date().toISOString()
         });
         
@@ -224,10 +223,7 @@ class UpdateService {
             break;
           case 'Progress':
             console.log('[UpdateService] 📊 Download progress:', {
-              chunkLength: event.data?.chunkLength,
-              contentLength: event.data?.contentLength,
-              percentage: event.data?.contentLength ? 
-                Math.round((event.data.chunkLength / event.data.contentLength) * 100) : 'unknown'
+              chunkLength: event.event === 'Progress' ? event.chunkLength : 0
             });
             // For now, we'll show indeterminate progress since we don't have contentLength
             this.setState({ progress: 50 }); // Show 50% as indeterminate progress
