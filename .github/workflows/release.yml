@@ -9,7 +9,16 @@ jobs:
   release:
     permissions:
       contents: write
-    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest' # Apple Silicon runner for ARM builds
+            args: '--target aarch64-apple-darwin'
+          - platform: 'macos-13' # Intel runner for x86_64 builds  
+            args: '--target x86_64-apple-darwin'
+
+    runs-on: ${{ matrix.platform }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -17,7 +26,7 @@ jobs:
       - name: Rust setup
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-apple-darwin,x86_64-apple-darwin
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin' || 'x86_64-apple-darwin' }}
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -47,14 +56,16 @@ jobs:
             - Enhanced automatic update system with improved UI notifications
             - Better error handling and progress tracking for updates
             - Development mode testing support with detailed logging
-            - Universal binary support for both Intel and Apple Silicon Macs
+            - Proper code signing for secure automatic updates
 
             ## Installation
-            Download the universal `.dmg` file that works on both Intel and Apple Silicon Macs
+            Download the appropriate installer for your Mac:
+            - **Apple Silicon Macs (M1/M2/M3)**: Download the `aarch64` version
+            - **Intel Macs**: Download the `x64` version
 
             ## Automatic Updates
             This version includes an automatic update system that will notify you when new versions are available.
           releaseDraft: false
           prerelease: false
-          args: --target universal-apple-darwin
+          args: ${{ matrix.args }}
           includeUpdaterJson: true
