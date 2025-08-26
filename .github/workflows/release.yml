@@ -14,18 +14,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Debug environment variables
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: |
-          echo "=== DEBUGGING SIGNING SETUP ==="
-          echo "TAURI_SIGNING_PRIVATE_KEY length: ${#TAURI_SIGNING_PRIVATE_KEY}"
-          echo "TAURI_SIGNING_PRIVATE_KEY_PASSWORD length: ${#TAURI_SIGNING_PRIVATE_KEY_PASSWORD}"
-          echo "First 50 chars of key: ${TAURI_SIGNING_PRIVATE_KEY:0:50}..."
-          echo "Key ends with: ...${TAURI_SIGNING_PRIVATE_KEY: -20}"
-          echo "Password is set: $([ -n "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" ] && echo "YES" || echo "NO")"
-          
       - name: Rust setup
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -45,121 +33,6 @@ jobs:
       - name: Install frontend dependencies
         run: npm install
 
-      - name: Debug and clean private key
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: |
-          echo "=== COMPREHENSIVE KEY ANALYSIS ==="
-          echo "Key length: ${#TAURI_SIGNING_PRIVATE_KEY}"
-          echo "Password length: ${#TAURI_SIGNING_PRIVATE_KEY_PASSWORD}"
-          
-          echo "=== RAW KEY INSPECTION ==="
-          echo "First 100 chars: ${TAURI_SIGNING_PRIVATE_KEY:0:100}"
-          echo "Last 50 chars: ${TAURI_SIGNING_PRIVATE_KEY: -50}"
-          
-          echo "=== CHARACTER ANALYSIS AROUND OFFSET 464 ==="
-          if [ ${#TAURI_SIGNING_PRIVATE_KEY} -gt 470 ]; then
-            echo "Characters 460-470:"
-            echo "${TAURI_SIGNING_PRIVATE_KEY:460:10}" | od -c
-            echo "Characters as hex:"
-            echo "${TAURI_SIGNING_PRIVATE_KEY:460:10}" | xxd
-          fi
-          
-          echo "=== LOOKING FOR EMBEDDED NEWLINES ==="
-          echo "Checking for \\n characters in key:"
-          echo "$TAURI_SIGNING_PRIVATE_KEY" | grep -o $'\n' | wc -l || echo "grep failed"
-          
-          echo "=== DETAILED BASE64 ANALYSIS ==="
-          # Check if key length is valid for base64 (should be multiple of 4)
-          KEY_LENGTH=${#TAURI_SIGNING_PRIVATE_KEY}
-          REMAINDER=$((KEY_LENGTH % 4))
-          echo "Key length: $KEY_LENGTH (remainder when divided by 4: $REMAINDER)"
-          
-          if [ $REMAINDER -ne 0 ]; then
-            echo "❌ Key length is not a multiple of 4 - this is likely the problem!"
-            PADDING_NEEDED=$((4 - REMAINDER))
-            echo "Need to add $PADDING_NEEDED padding character(s) '='"
-          fi
-          
-          echo "=== CHARACTER ANALYSIS AT PROBLEM OFFSET ==="
-          if [ ${#TAURI_SIGNING_PRIVATE_KEY} -ge 464 ]; then
-            echo "Last 10 characters of key:"
-            echo "${TAURI_SIGNING_PRIVATE_KEY: -10}" | od -c
-            echo "Characters 460-464 as hex:"
-            echo "${TAURI_SIGNING_PRIVATE_KEY:460:4}" | xxd
-            
-            # Check what character 10 (newline) looks like in the key
-            CHAR_AT_464=$(echo "${TAURI_SIGNING_PRIVATE_KEY:463:1}" | od -c)
-            echo "Character at offset 464: $CHAR_AT_464"
-          fi
-          
-          echo "=== FIXING THE TRAILING NEWLINE ==="
-          # Method 1: Remove trailing newline using tr
-          echo "Method 1: Strip trailing newline with tr..."
-          CLEAN_KEY_1=$(echo -n "$TAURI_SIGNING_PRIVATE_KEY" | tr -d '\n\r')
-          echo "Clean key 1 length: ${#CLEAN_KEY_1}"
-          echo "Clean key 1 ends with: ...${CLEAN_KEY_1: -10}"
-          
-          # Method 2: Remove trailing newline using parameter expansion
-          echo "Method 2: Strip trailing newline with parameter expansion..."
-          CLEAN_KEY_2="${TAURI_SIGNING_PRIVATE_KEY%$'\n'}"
-          CLEAN_KEY_2="${CLEAN_KEY_2%$'\r'}"
-          echo "Clean key 2 length: ${#CLEAN_KEY_2}"
-          echo "Clean key 2 ends with: ...${CLEAN_KEY_2: -10}"
-          
-          # Method 3: Use printf to strip newlines
-          echo "Method 3: Strip trailing newline with printf..."
-          CLEAN_KEY_3=$(printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" | tr -d '\n\r')
-          echo "Clean key 3 length: ${#CLEAN_KEY_3}"
-          echo "Clean key 3 ends with: ...${CLEAN_KEY_3: -10}"
-          
-          echo "=== TESTING CLEANED KEYS ==="
-          
-          # Test all three cleaning methods
-          for method in 1 2 3; do
-            eval "TEST_KEY=\$CLEAN_KEY_$method"
-            
-            if [ "$TEST_KEY" != "FAILED" ] && [ ${#TEST_KEY} -gt 100 ]; then
-              echo "Testing clean key method $method..."
-              echo "$TEST_KEY" > "/tmp/clean_key_$method.key"
-              echo "test content method $method" > "/tmp/test_$method.txt"
-              
-              echo "Attempting to sign with method $method key..."
-              if npx tauri signer sign "/tmp/test_$method.txt" -f "/tmp/clean_key_$method.key" -p "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" 2>&1; then
-                echo "✅ CLEAN KEY METHOD $method SUCCEEDED!"
-                echo ""
-                echo "🎯 SUCCESS! USE THIS CLEANED KEY IN GITHUB SECRETS:"
-                echo "======================================================"
-                echo "$TEST_KEY"
-                echo "======================================================"
-                echo "🎯 END OF WORKING KEY - COPY THE ABOVE!"
-                echo ""
-                
-                # Also test that we can decode it properly
-                echo "🔍 Verification: Testing base64 decode..."
-                if echo "$TEST_KEY" | base64 -d >/dev/null 2>&1; then
-                  echo "✅ Key decodes successfully!"
-                else
-                  echo "❌ Warning: Key still has decode issues"
-                fi
-                break
-              else
-                echo "❌ Clean key method $method failed"
-              fi
-            else
-              echo "Clean key method $method is invalid (length: ${#TEST_KEY})"
-            fi
-          done
-          
-          echo "=== ORIGINAL KEY TEST (for comparison) ==="
-          echo "$TAURI_SIGNING_PRIVATE_KEY" > /tmp/original_key.key
-          echo "test content original" > /tmp/test_original.txt
-          npx tauri signer sign /tmp/test_original.txt -f /tmp/original_key.key -p "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" 2>&1 || echo "Original key failed as expected"
-          
-          # Clean up
-          rm -f /tmp/*_key*.key /tmp/test*.txt
-
       - name: Build the app
         uses: tauri-apps/tauri-action@v0
         env:
@@ -168,46 +41,20 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: 'ManyMany.dev v__VERSION__ (Debug Build)'
+          releaseName: 'ManyMany.dev v__VERSION__'
           releaseBody: |
-            ## Debug Release v__VERSION__
+            ## Release v__VERSION__
             
-            This is a debug build to test the signing and update system.
-            
-            **What we're testing:**
-            - Proper code signing with corrected key pair
-            - Automatic generation of latest.json with real signatures
-            - End-to-end update functionality
+            This release includes:
+            - Fresh Tauri-generated signing keys for proper updates
+            - ARM64 macOS build with working auto-updater
+            - Enhanced terminal and worktree management features
             
             **Technical details:**
-            - ARM-only build for Apple Silicon Macs
-            - Enhanced logging for signing diagnostics
+            - Native Tauri v2 signing (no minisign compatibility issues)
+            - Proper signature generation and latest.json creation
             - Version: __VERSION__
           releaseDraft: false
           prerelease: false
           args: --target aarch64-apple-darwin
           includeUpdaterJson: true
-
-      - name: Debug build artifacts and signing results
-        run: |
-          echo "=== POST-BUILD ARTIFACT ANALYSIS ==="
-          
-          echo "🔍 Searching for signature files..."
-          find src-tauri/target -name "*.sig" -ls || echo "❌ No .sig files found"
-          
-          echo "🔍 Searching for tar.gz files..."
-          find src-tauri/target -name "*.tar.gz*" -ls
-          
-          echo "🔍 Checking bundle directory structure..."
-          find src-tauri/target -type f -name "*ManyMany*" | head -20
-          
-          echo "🔍 Looking for any signing-related files..."
-          find src-tauri/target -name "*sign*" -o -name "*.key" -o -name "*.pub" | head -10
-          
-          echo "🔍 Directory structure of release bundle..."
-          ls -la src-tauri/target/aarch64-apple-darwin/release/bundle/ || echo "Bundle directory not found"
-          
-          if [ -d "src-tauri/target/aarch64-apple-darwin/release/bundle/macos" ]; then
-            echo "📁 macOS bundle contents:"
-            ls -la src-tauri/target/aarch64-apple-darwin/release/bundle/macos/
-          fi
