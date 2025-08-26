@@ -3,7 +3,7 @@ A powerful desktop application for managing Git worktrees with integrated termin
 
 
 ## 🎬 Demo Video (Click to play)
-[![ManyMany.dev Demo](https://ymhkwmpktydkksimfqxq.supabase.co/storage/v1/object/public/chat-attachments/manymany%20(2).jpg)](https://www.youtube.com/watch?v=ieqhrrud-Xo&ab_channel=AIJason)
+[![ManyMany.dev Demo](https://ymhkwmpktydkksimfqxq.supabase.co/storage/v1/object/public/chat-attachments/manymanyplay.jpg)](https://www.youtube.com/watch?v=ieqhrrud-Xo&ab_channel=AIJason)
 
 
 ## Features
