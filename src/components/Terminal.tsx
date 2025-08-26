@@ -44,7 +44,8 @@ export const Terminal = React.forwardRef<{ focus: () => void }, TerminalProps>((
   }));
 
   useEffect(() => {
-    if (!terminalRef.current) {
+    if (!terminalRef.current || xtermRef.current) {
+      // Don't create if XTerm instance already exists (prevents re-creation on re-renders)
       return;
     }
     // Create XTerm instance
@@ -173,8 +174,12 @@ export const Terminal = React.forwardRef<{ focus: () => void }, TerminalProps>((
       
       window.removeEventListener('resize', handleResize);
       
-      // Cleanup XTerm
-      xterm.dispose();
+      // Only cleanup XTerm if component is actually unmounting
+      // (not just hidden via display:none)
+      if (xterm) {
+        xterm.dispose();
+        xtermRef.current = null;
+      }
     };
   }, []); // Empty dependency array - only run once on mount
 

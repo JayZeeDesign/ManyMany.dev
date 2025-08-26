@@ -61,16 +61,29 @@ export function WorktreeView() {
   }, [worktree]);
 
   // Auto-create default terminals when a worktree has no terminals
+  // Use useRef to track which worktrees have had terminals created to prevent duplicates
+  const worktreeTerminalsCreated = useRef<Set<string>>(new Set());
+  
   useEffect(() => {
     if (!worktree || !worktree.id) return;
+    
+    // Check if we've already tried to create terminals for this worktree
+    if (worktreeTerminalsCreated.current.has(worktree.id)) {
+      return;
+    }
     
     // Always create defaults if worktree has no terminals (simplified logic)
     const existingTerminals = getTerminalsForWorktree(worktree.id);
     if (existingTerminals.length > 0) {
+      // Mark as processed since terminals already exist
+      worktreeTerminalsCreated.current.add(worktree.id);
       return;
     }
     
     console.log(`[WorktreeView] Creating default terminals for worktree: ${worktree.id}`);
+    
+    // Mark this worktree as being processed to prevent re-runs
+    worktreeTerminalsCreated.current.add(worktree.id);
     
     // Create default terminals
     const createDefaultTerminals = async () => {
@@ -78,6 +91,14 @@ export function WorktreeView() {
       
       for (const defaultTerminal of defaultTerminals) {
         try {
+          // Double-check that we don't have a terminal with this name already
+          const existingTerminals = getTerminalsForWorktree(worktree.id);
+          const duplicateTerminal = existingTerminals.find(t => t.name === defaultTerminal.name);
+          if (duplicateTerminal) {
+            console.log(`[WorktreeView] Skipping duplicate terminal "${defaultTerminal.name}" for worktree ${worktree.id}`);
+            continue;
+          }
+          
           // Create terminal in store
           const newTerminal = createTerminal({
             name: defaultTerminal.name,
@@ -107,7 +128,7 @@ export function WorktreeView() {
     // Small delay to ensure worktree is fully loaded
     setTimeout(createDefaultTerminals, 300);
     
-  }, [worktree, defaultTerminals, getTerminalsForWorktree, createTerminal, setBackendTerminalId]);
+  }, [worktree?.id]); // Only depend on worktree.id, not the entire worktree object
 
   // Focus the input when entering edit mode
   useEffect(() => {
@@ -129,7 +150,17 @@ export function WorktreeView() {
   const handleCreateTerminalInternal = async () => {
     if (isCreatingTerminal || !worktree) return;
     
-    const terminalName = `Terminal ${terminals.length + 1}`;
+    // Generate unique terminal name
+    let terminalNumber = terminals.length + 1;
+    let terminalName = `Terminal ${terminalNumber}`;
+    
+    // Ensure unique name (in case of race conditions)
+    const allExistingTerminals = getTerminalsForWorktree(worktree.id);
+    while (allExistingTerminals.find(t => t.name === terminalName)) {
+      terminalNumber++;
+      terminalName = `Terminal ${terminalNumber}`;
+    }
+    
     setIsCreatingTerminal(true);
     
     try {
@@ -416,7 +447,7 @@ export function WorktreeView() {
                     }}
                   >
                     <Terminal
-                      key={`terminal-component-${terminal.id}`} // Additional stable key
+                      // No key prop - let React use position to maintain component identity
                       ref={(terminalRef) => {
                         if (terminalRef) {
                           terminalRefs.current[terminal.id] = terminalRef;
