@@ -55,17 +55,27 @@ jobs:
           # This is a confirmed bug: https://github.com/actions/runner/issues/291
           # Solution: Strip newlines using echo -n and tr -d
           
-          echo "Cleaning key by removing GitHub-added newlines..."
-          TAURI_SIGNING_PRIVATE_KEY=$(echo -n "$TAURI_SIGNING_PRIVATE_KEY_RAW" | tr -d '\n\r')
-          echo "Cleaned key length: ${#TAURI_SIGNING_PRIVATE_KEY}"
+          echo "Cleaning key by removing GitHub-added newlines AND embedded newlines..."
+          
+          # Step 1: Remove any GitHub-added trailing newlines from the base64 string
+          TEMP_KEY=$(echo -n "$TAURI_SIGNING_PRIVATE_KEY_RAW" | tr -d '\n\r')
+          echo "After removing external newlines: ${#TEMP_KEY} chars"
+          
+          # Step 2: Decode base64, remove internal newlines, re-encode
+          echo "Decoding, stripping internal newlines, and re-encoding..."
+          TAURI_SIGNING_PRIVATE_KEY=$(echo "$TEMP_KEY" | base64 -d | tr -d '\n\r' | base64 -w 0)
+          echo "Final cleaned key length: ${#TAURI_SIGNING_PRIVATE_KEY}"
           echo "Key ends with: ...${TAURI_SIGNING_PRIVATE_KEY: -10}"
           
           # Verify the key is now properly formatted
           echo "=== VERIFICATION ==="
-          if [ ${#TAURI_SIGNING_PRIVATE_KEY} -eq 348 ]; then
-            echo "✅ Key length is correct (348 characters)"
+          echo "Final key length: ${#TAURI_SIGNING_PRIVATE_KEY} characters"
+          
+          # The key length will be different now since we removed internal newlines
+          if [ ${#TAURI_SIGNING_PRIVATE_KEY} -lt 348 ]; then
+            echo "✅ Key is shorter than original (newlines removed)"
           else
-            echo "❌ Key length is ${#TAURI_SIGNING_PRIVATE_KEY}, expected 348"
+            echo "❌ Key length unchanged: ${#TAURI_SIGNING_PRIVATE_KEY}"
           fi
           
           # Test that the cleaned key can be base64 decoded
