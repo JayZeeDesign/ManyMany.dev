@@ -13,7 +13,7 @@ A powerful desktop application for managing Git worktrees with integrated termin
 - **Native Performance**: Built with Tauri for native desktop performance
 - **Agent Context Sharing**: Coming soon. Share context across git worktrees
 
-## Use latest packaged version
+## Download & Install
 Get early access to latest version at [AI Builder Club](https://www.aibuilderclub.com/), otherwise you can dev run below
 
 ## Development
