@@ -11,6 +11,9 @@ interface AppSettings {
   sidebarCollapsed: boolean;
   showFileChangesPanel: boolean;
   
+  // Navigation preferences
+  autoFocusTerminalOnNavigation: boolean;
+  
   // Terminal preferences
   defaultShell: string;
   terminalFontSize: number;
@@ -33,6 +36,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   autoCheckForUpdates: true,
   sidebarCollapsed: false,
   showFileChangesPanel: false,
+  autoFocusTerminalOnNavigation: true,
   defaultShell: '/bin/zsh',
   terminalFontSize: 14,
   terminalFontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',

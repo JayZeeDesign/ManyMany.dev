@@ -1,6 +1,8 @@
 import { useEffect, useCallback, useState, useMemo } from 'react';
 import { useProjectStore } from '@/stores/projectStore';
-import { useShortcutsStore, ShortcutConfig } from '@/stores/shortcutsStore';
+import { useShortcutsStore } from '@/stores/shortcutsStore';
+import { useTerminalStore } from '@/stores/terminalStore';
+import { useAppSettingsStore } from '@/stores/appSettingsStore';
 
 export interface KeyboardShortcut {
   id: string;
@@ -13,8 +15,6 @@ export interface KeyboardShortcut {
   action: () => void;
 }
 
-// Utility to detect platform
-const isMac = typeof navigator !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0;
 
 export const useKeyboardShortcuts = () => {
   const {
@@ -24,10 +24,11 @@ export const useKeyboardShortcuts = () => {
     selectProject,
     selectWorktree,
     getSelectedProject,
-    getSelectedWorktree,
   } = useProjectStore();
   
   const { shortcuts: shortcutConfigs, enabled } = useShortcutsStore();
+  const { focusActiveTerminal } = useTerminalStore();
+  const { settings } = useAppSettingsStore();
   const [showHelp, setShowHelp] = useState(false);
 
   // Helper to get all worktrees from the current project
@@ -43,6 +44,22 @@ export const useKeyboardShortcuts = () => {
     return worktrees.findIndex(w => w.id === selectedWorktreeId);
   }, [getCurrentProjectWorktrees, selectedWorktreeId]);
 
+  // Helper to focus terminal after navigation
+  const focusTerminalAfterNavigation = useCallback(async (worktreeId: string) => {
+    // Only auto-focus if user has this preference enabled
+    if (settings.autoFocusTerminalOnNavigation) {
+      console.log(`[KeyboardShortcuts] Attempting to focus terminal for worktree: ${worktreeId}`);
+      try {
+        const success = await focusActiveTerminal(worktreeId);
+        console.log(`[KeyboardShortcuts] Focus result: ${success}`);
+      } catch (error) {
+        console.error('Failed to auto-focus terminal after navigation:', error);
+      }
+    } else {
+      console.log(`[KeyboardShortcuts] Auto-focus disabled in settings`);
+    }
+  }, [focusActiveTerminal, settings.autoFocusTerminalOnNavigation]);
+
   // Navigate to next worktree
   const navigateToNextWorktree = useCallback(() => {
     try {
@@ -56,11 +73,13 @@ export const useKeyboardShortcuts = () => {
       if (project && worktrees[nextIndex]) {
         selectProject(project.id);
         selectWorktree(worktrees[nextIndex].id);
+        // Focus terminal after navigation
+        focusTerminalAfterNavigation(worktrees[nextIndex].id);
       }
     } catch (error) {
       console.error('Failed to navigate to next worktree:', error);
     }
-  }, [getCurrentProjectWorktrees, getCurrentWorktreeIndex, getSelectedProject, selectProject, selectWorktree]);
+  }, [getCurrentProjectWorktrees, getCurrentWorktreeIndex, getSelectedProject, selectProject, selectWorktree, focusTerminalAfterNavigation]);
 
   // Navigate to previous worktree
   const navigateToPreviousWorktree = useCallback(() => {
@@ -75,11 +94,13 @@ export const useKeyboardShortcuts = () => {
       if (project && worktrees[prevIndex]) {
         selectProject(project.id);
         selectWorktree(worktrees[prevIndex].id);
+        // Focus terminal after navigation
+        focusTerminalAfterNavigation(worktrees[prevIndex].id);
       }
     } catch (error) {
       console.error('Failed to navigate to previous worktree:', error);
     }
-  }, [getCurrentProjectWorktrees, getCurrentWorktreeIndex, getSelectedProject, selectProject, selectWorktree]);
+  }, [getCurrentProjectWorktrees, getCurrentWorktreeIndex, getSelectedProject, selectProject, selectWorktree, focusTerminalAfterNavigation]);
 
   // Navigate to next project
   const navigateToNextProject = useCallback(() => {
@@ -97,13 +118,15 @@ export const useKeyboardShortcuts = () => {
       // Select the first worktree if available
       if (nextProject.worktrees && nextProject.worktrees.length > 0) {
         selectWorktree(nextProject.worktrees[0].id);
+        // Focus terminal after navigation
+        focusTerminalAfterNavigation(nextProject.worktrees[0].id);
       } else {
         selectWorktree(null);
       }
     } catch (error) {
       console.error('Failed to navigate to next project:', error);
     }
-  }, [projects, selectedProjectId, selectProject, selectWorktree]);
+  }, [projects, selectedProjectId, selectProject, selectWorktree, focusTerminalAfterNavigation]);
 
   // Navigate to previous project
   const navigateToPreviousProject = useCallback(() => {
@@ -121,13 +144,15 @@ export const useKeyboardShortcuts = () => {
       // Select the first worktree if available
       if (prevProject.worktrees && prevProject.worktrees.length > 0) {
         selectWorktree(prevProject.worktrees[0].id);
+        // Focus terminal after navigation
+        focusTerminalAfterNavigation(prevProject.worktrees[0].id);
       } else {
         selectWorktree(null);
       }
     } catch (error) {
       console.error('Failed to navigate to previous project:', error);
     }
-  }, [projects, selectedProjectId, selectProject, selectWorktree]);
+  }, [projects, selectedProjectId, selectProject, selectWorktree, focusTerminalAfterNavigation]);
 
   // Navigate to worktree by number (1-9)
   const navigateToWorktreeByNumber = useCallback((number: number) => {
@@ -139,12 +164,14 @@ export const useKeyboardShortcuts = () => {
         if (project && targetWorktree) {
           selectProject(project.id);
           selectWorktree(targetWorktree.id);
+          // Focus terminal after navigation
+          focusTerminalAfterNavigation(targetWorktree.id);
         }
       }
     } catch (error) {
       console.error(`Failed to navigate to worktree ${number}:`, error);
     }
-  }, [getCurrentProjectWorktrees, getSelectedProject, selectProject, selectWorktree]);
+  }, [getCurrentProjectWorktrees, getSelectedProject, selectProject, selectWorktree, focusTerminalAfterNavigation]);
 
   // Action mapping for configurable shortcuts
   const actionMap = useMemo(() => ({
@@ -153,13 +180,11 @@ export const useKeyboardShortcuts = () => {
     navigateToNextProject,
     navigateToPreviousProject,
     showHelp: () => setShowHelp(true),
-    navigateToWorktreeByNumber: (number: number) => () => navigateToWorktreeByNumber(number),
   }), [
     navigateToNextWorktree,
     navigateToPreviousWorktree,
     navigateToNextProject,
     navigateToPreviousProject,
-    navigateToWorktreeByNumber,
   ]);
 
   // Memoized shortcuts array from configuration
@@ -173,7 +198,8 @@ export const useKeyboardShortcuts = () => {
       if (config.action.includes(':')) {
         const [actionName, param] = config.action.split(':');
         if (actionName === 'navigateToWorktreeByNumber') {
-          action = actionMap.navigateToWorktreeByNumber(parseInt(param, 10));
+          const number = parseInt(param, 10);
+          action = () => navigateToWorktreeByNumber(number);
         } else {
           action = () => console.warn(`Unknown parameterized action: ${config.action}`);
         }
@@ -193,25 +219,26 @@ export const useKeyboardShortcuts = () => {
         action,
       };
     });
-  }, [shortcutConfigs, enabled, actionMap]);
+  }, [shortcutConfigs, enabled, actionMap, navigateToWorktreeByNumber]);
 
   useEffect(() => {
     if (!enabled) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
       try {
-        // Don't trigger shortcuts if user is typing in any interactive element
+        // Don't trigger shortcuts if user is typing in interactive elements
+        // Also don't trigger if user is in terminal (terminal handles its own navigation)
         const activeElement = document.activeElement;
-        const isInteractiveElement = 
+        const isTerminal = activeElement?.classList.contains('xterm-helper-textarea');
+        const isOtherInteractiveElement = 
           activeElement?.tagName === 'INPUT' ||
           activeElement?.tagName === 'TEXTAREA' ||
           activeElement?.tagName === 'SELECT' ||
           activeElement?.getAttribute('contenteditable') === 'true' ||
-          activeElement?.getAttribute('role') === 'textbox' ||
-          // Check for xterm.js terminals
-          activeElement?.classList.contains('xterm-helper-textarea');
+          activeElement?.getAttribute('role') === 'textbox';
 
-        if (isInteractiveElement) {
+        if (isOtherInteractiveElement || isTerminal) {
+          console.log(`[KeyboardShortcuts] Blocked - ${isTerminal ? 'terminal' : 'interactive element'} focused`);
           return;
         }
 

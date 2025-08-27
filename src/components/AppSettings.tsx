@@ -239,6 +239,29 @@ export function AppSettings({ isOpen, onClose }: AppSettingsProps) {
                           </label>
                         </div>
                       </div>
+
+                      {/* Navigation Settings */}
+                      <div>
+                        <h4 className="text-sm font-medium mb-3" style={{ color: 'rgb(var(--color-foreground))' }}>
+                          Navigation
+                        </h4>
+                        <div className="space-y-2">
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={settings.autoFocusTerminalOnNavigation}
+                              onChange={(e) => updateSetting('autoFocusTerminalOnNavigation', e.target.checked)}
+                              className="rounded"
+                            />
+                            <span className="text-sm" style={{ color: 'rgb(var(--color-foreground))' }}>
+                              Auto-focus terminal when switching worktrees
+                            </span>
+                          </label>
+                          <p className="text-xs ml-5" style={{ color: 'rgb(var(--color-muted-foreground))' }}>
+                            Automatically focuses the terminal so you can start typing immediately after using keyboard shortcuts
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   </div>
 

@@ -1,13 +1,17 @@
-import React, { useEffect, useRef, useState, useImperativeHandle } from 'react';
+import React, { useEffect, useRef, useState, useImperativeHandle, useCallback } from 'react';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import '@xterm/xterm/css/xterm.css';
+import { useTerminalStore } from '@/stores/terminalStore';
+import { useProjectStore } from '@/stores/projectStore';
+import { useAppSettingsStore } from '@/stores/appSettingsStore';
 
 interface TerminalProps {
-  terminalId?: string;
+  terminalId?: string; // Backend terminal ID
+  frontendTerminalId: string; // Frontend terminal ID for focus management
   worktreeId: string;
   workingDirectory: string;
   name: string;
@@ -17,6 +21,7 @@ interface TerminalProps {
 
 export const Terminal = React.forwardRef<{ focus: () => void }, TerminalProps>(({
   terminalId: providedTerminalId,
+  frontendTerminalId,
   workingDirectory,
   name,
   isRestored,
@@ -27,6 +32,18 @@ export const Terminal = React.forwardRef<{ focus: () => void }, TerminalProps>((
   const fitAddonRef = useRef<FitAddon | null>(null);
   const [terminalId, setTerminalId] = useState<string | null>(providedTerminalId || null);
   
+  // Get store methods for focus and navigation
+  const { registerTerminalRef, focusActiveTerminal } = useTerminalStore();
+  const { 
+    projects, 
+    selectedProjectId, 
+    selectedWorktreeId,
+    selectProject, 
+    selectWorktree, 
+    getSelectedProject 
+  } = useProjectStore();
+  const { settings } = useAppSettingsStore();
+  
   // Event listener cleanup functions
   const unlistenOutputRef = useRef<UnlistenFn | null>(null);
   const unlistenClosedRef = useRef<UnlistenFn | null>(null);
@@ -34,14 +51,154 @@ export const Terminal = React.forwardRef<{ focus: () => void }, TerminalProps>((
   // Store current terminal ID in ref for input handlers
   const currentTerminalIdRef = useRef<string | null>(terminalId);
 
-  // Expose focus function to parent component
-  useImperativeHandle(ref, () => ({
-    focus: () => {
+  // Enhanced focus function with better reliability
+  const focusTerminal = useCallback(() => {
+    try {
       if (xtermRef.current) {
         xtermRef.current.focus();
+        return true;
       }
+      return false;
+    } catch (error) {
+      console.error('Failed to focus terminal:', error);
+      return false;
     }
+  }, []);
+
+  // Expose focus function to parent component
+  useImperativeHandle(ref, () => ({
+    focus: focusTerminal
   }));
+
+  // Register this terminal's focus method with the store using frontend ID
+  useEffect(() => {
+    const terminalHandle = { focus: focusTerminal };
+    registerTerminalRef(frontendTerminalId, terminalHandle);
+    
+    console.log(`[Terminal] Registered focus handler for frontend ID: ${frontendTerminalId}`);
+    
+    // Cleanup on unmount
+    return () => {
+      registerTerminalRef(frontendTerminalId, null);
+      console.log(`[Terminal] Unregistered focus handler for frontend ID: ${frontendTerminalId}`);
+    };
+  }, [frontendTerminalId, focusTerminal, registerTerminalRef]);
+
+  // Navigation functions for terminal shortcuts
+  const navigateToNextWorktree = useCallback(async () => {
+    try {
+      const project = getSelectedProject();
+      if (!project?.worktrees) return;
+      
+      const worktrees = project.worktrees;
+      const currentIndex = selectedWorktreeId ? worktrees.findIndex(w => w.id === selectedWorktreeId) : -1;
+      const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % worktrees.length;
+      
+      if (worktrees[nextIndex]) {
+        console.log(`[Terminal] Navigating to next worktree: ${worktrees[nextIndex].id}`);
+        selectProject(project.id);
+        selectWorktree(worktrees[nextIndex].id);
+        
+        // Auto-focus after navigation
+        if (settings.autoFocusTerminalOnNavigation) {
+          setTimeout(async () => {
+            await focusActiveTerminal(worktrees[nextIndex].id);
+          }, 200);
+        }
+      }
+    } catch (error) {
+      console.error('Terminal navigation error:', error);
+    }
+  }, [getSelectedProject, selectedWorktreeId, selectProject, selectWorktree, settings.autoFocusTerminalOnNavigation, focusActiveTerminal]);
+
+  const navigateToPreviousWorktree = useCallback(async () => {
+    try {
+      const project = getSelectedProject();
+      if (!project?.worktrees) return;
+      
+      const worktrees = project.worktrees;
+      const currentIndex = selectedWorktreeId ? worktrees.findIndex(w => w.id === selectedWorktreeId) : -1;
+      const prevIndex = currentIndex === -1 ? worktrees.length - 1 : (currentIndex - 1 + worktrees.length) % worktrees.length;
+      
+      if (worktrees[prevIndex]) {
+        console.log(`[Terminal] Navigating to previous worktree: ${worktrees[prevIndex].id}`);
+        selectProject(project.id);
+        selectWorktree(worktrees[prevIndex].id);
+        
+        // Auto-focus after navigation
+        if (settings.autoFocusTerminalOnNavigation) {
+          setTimeout(async () => {
+            await focusActiveTerminal(worktrees[prevIndex].id);
+          }, 200);
+        }
+      }
+    } catch (error) {
+      console.error('Terminal navigation error:', error);
+    }
+  }, [getSelectedProject, selectedWorktreeId, selectProject, selectWorktree, settings.autoFocusTerminalOnNavigation, focusActiveTerminal]);
+
+  // Project navigation functions
+  const navigateToNextProject = useCallback(async () => {
+    try {
+      if (projects.length === 0) return;
+
+      const currentIndex = selectedProjectId ? projects.findIndex(p => p.id === selectedProjectId) : -1;
+      const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % projects.length;
+      
+      const nextProject = projects[nextIndex];
+      if (!nextProject) return;
+      
+      console.log(`[Terminal] Navigating to next project: ${nextProject.id}`);
+      selectProject(nextProject.id);
+      
+      // Select the first worktree if available
+      if (nextProject.worktrees && nextProject.worktrees.length > 0) {
+        selectWorktree(nextProject.worktrees[0].id);
+        
+        // Auto-focus after navigation
+        if (settings.autoFocusTerminalOnNavigation) {
+          setTimeout(async () => {
+            await focusActiveTerminal(nextProject.worktrees[0].id);
+          }, 200);
+        }
+      } else {
+        selectWorktree(null);
+      }
+    } catch (error) {
+      console.error('Terminal project navigation error:', error);
+    }
+  }, [projects, selectedProjectId, selectProject, selectWorktree, settings.autoFocusTerminalOnNavigation, focusActiveTerminal]);
+
+  const navigateToPreviousProject = useCallback(async () => {
+    try {
+      if (projects.length === 0) return;
+
+      const currentIndex = selectedProjectId ? projects.findIndex(p => p.id === selectedProjectId) : -1;
+      const prevIndex = currentIndex === -1 ? projects.length - 1 : (currentIndex - 1 + projects.length) % projects.length;
+      
+      const prevProject = projects[prevIndex];
+      if (!prevProject) return;
+      
+      console.log(`[Terminal] Navigating to previous project: ${prevProject.id}`);
+      selectProject(prevProject.id);
+      
+      // Select the first worktree if available
+      if (prevProject.worktrees && prevProject.worktrees.length > 0) {
+        selectWorktree(prevProject.worktrees[0].id);
+        
+        // Auto-focus after navigation
+        if (settings.autoFocusTerminalOnNavigation) {
+          setTimeout(async () => {
+            await focusActiveTerminal(prevProject.worktrees[0].id);
+          }, 200);
+        }
+      } else {
+        selectWorktree(null);
+      }
+    } catch (error) {
+      console.error('Terminal project navigation error:', error);
+    }
+  }, [projects, selectedProjectId, selectProject, selectWorktree, settings.autoFocusTerminalOnNavigation, focusActiveTerminal]);
 
   useEffect(() => {
     if (!terminalRef.current || xtermRef.current) {
@@ -243,6 +400,54 @@ export const Terminal = React.forwardRef<{ focus: () => void }, TerminalProps>((
           }
         });
 
+        // Intercept navigation shortcuts BEFORE xterm processes them
+        xtermRef.current.attachCustomKeyEventHandler((event) => {
+          // Only handle keydown events
+          if (event.type !== 'keydown') return true;
+          
+          const hasModifier = event.metaKey || event.ctrlKey;
+          
+          if (hasModifier) {
+            switch (event.key) {
+              case 'ArrowRight':
+                console.log(`[Terminal] Executing next worktree navigation`);
+                event.preventDefault();
+                navigateToNextWorktree();
+                return false; // Prevent xterm.js from processing
+                
+              case 'ArrowLeft':
+                console.log(`[Terminal] Executing previous worktree navigation`);
+                event.preventDefault();
+                navigateToPreviousWorktree();
+                return false; // Prevent xterm.js from processing
+                
+              case 'ArrowDown':
+                console.log(`[Terminal] Executing next project navigation`);
+                event.preventDefault();
+                navigateToNextProject();
+                return false; // Prevent xterm.js from processing
+                
+              case 'ArrowUp':
+                console.log(`[Terminal] Executing previous project navigation`);
+                event.preventDefault();
+                navigateToPreviousProject();
+                return false; // Prevent xterm.js from processing
+                
+              case '/':
+                // Let help shortcut bubble up to global handler by not preventing default
+                console.log(`[Terminal] Allowing help shortcut to bubble up`);
+                return false; // Prevent xterm.js from processing, let it bubble to document
+                
+              default:
+                // Allow other Cmd/Ctrl combinations to be processed normally
+                return true;
+            }
+          }
+          
+          // Allow all other keys to be processed normally by xterm.js
+          return true;
+        });
+
         // Handle special key combinations that XTerm doesn't handle by default
         xtermRef.current.onKey(({ domEvent }) => {
           const currentId = currentTerminalIdRef.current;
@@ -253,12 +458,7 @@ export const Terminal = React.forwardRef<{ focus: () => void }, TerminalProps>((
               case 'Backspace': // Cmd+Delete -> Clear line (Ctrl+U)
                 specialKey = '\x15'; // Ctrl+U
                 break;
-              case 'ArrowLeft': // Cmd+Left -> Beginning of line (Ctrl+A)
-                specialKey = '\x01'; // Ctrl+A
-                break;
-              case 'ArrowRight': // Cmd+Right -> End of line (Ctrl+E)
-                specialKey = '\x05'; // Ctrl+E
-                break;
+              // Remove ArrowLeft/Right from here since they're now handled by global navigation
               case 'a': // Cmd+A -> Select all (Ctrl+A)
                 if (domEvent.shiftKey) return; // Let browser handle Cmd+Shift+A
                 specialKey = '\x01'; // Ctrl+A
