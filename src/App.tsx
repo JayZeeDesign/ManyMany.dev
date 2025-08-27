@@ -6,8 +6,10 @@ import { WorktreeView } from './components/WorktreeView';
 import { FileChangesPanel } from './components/FileChangesPanel';
 import { UpdateBanner } from './components/UpdateBanner';
 import { UpdateDialog } from './components/UpdateDialog';
+import { KeyboardShortcutsHelp } from './components/KeyboardShortcutsHelp';
 import { useProjectStore } from './stores/projectStore';
 import { useUpdateStore } from './stores/updateStore';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { FolderGit2, GitBranch, ChevronRight, ChevronDown, Folder, Code, FileText, RefreshCw } from 'lucide-react';
 
 function App() {
@@ -15,6 +17,9 @@ function App() {
   const { checkForUpdates, autoCheckEnabled, checking } = useUpdateStore();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  
+  // Enable keyboard shortcuts
+  useKeyboardShortcuts();
   
   const selectedProject = getSelectedProject();
   const selectedWorktree = getSelectedWorktree();
@@ -126,6 +131,9 @@ function App() {
           
           {/* Action Buttons */}
           <div className="flex items-center gap-2">
+            {/* Keyboard Shortcuts Help - Always visible */}
+            <KeyboardShortcutsHelp />
+            
             {/* Update Check Button - Always visible */}
             <button
               onClick={handleCheckForUpdates}
