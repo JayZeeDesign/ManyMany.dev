@@ -1,11 +1,58 @@
 import { Keyboard, X } from 'lucide-react';
-import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { useEffect, useRef } from 'react';
+import { useKeyboardShortcuts, KeyboardShortcut } from '@/hooks/useKeyboardShortcuts';
 
 export function KeyboardShortcutsHelp() {
   const { shortcuts, showHelp, setShowHelp } = useKeyboardShortcuts();
+  const modalRef = useRef<HTMLDivElement>(null);
+  const firstFocusableRef = useRef<HTMLButtonElement>(null);
+  const lastFocusableRef = useRef<HTMLButtonElement>(null);
 
-  const formatShortcut = (shortcut: any) => {
-    const keys = [];
+  // Focus management for accessibility
+  useEffect(() => {
+    if (showHelp) {
+      // Focus the close button when modal opens
+      setTimeout(() => {
+        lastFocusableRef.current?.focus();
+      }, 100);
+    }
+  }, [showHelp]);
+
+  // Trap focus within modal
+  useEffect(() => {
+    if (!showHelp) return;
+
+    const handleTabKey = (event: KeyboardEvent) => {
+      if (event.key === 'Tab') {
+        const focusableElements = modalRef.current?.querySelectorAll(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        
+        if (focusableElements && focusableElements.length > 0) {
+          const firstElement = focusableElements[0] as HTMLElement;
+          const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
+          
+          if (event.shiftKey) {
+            if (document.activeElement === firstElement) {
+              event.preventDefault();
+              lastElement.focus();
+            }
+          } else {
+            if (document.activeElement === lastElement) {
+              event.preventDefault();
+              firstElement.focus();
+            }
+          }
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleTabKey);
+    return () => document.removeEventListener('keydown', handleTabKey);
+  }, [showHelp]);
+
+  const formatShortcut = (shortcut: KeyboardShortcut) => {
+    const keys: string[] = [];
     if (shortcut.metaKey) keys.push('⌘');
     if (shortcut.ctrlKey) keys.push('Ctrl');
     if (shortcut.altKey) keys.push('⌥');
@@ -24,10 +71,15 @@ export function KeyboardShortcutsHelp() {
     return keys.join(' + ');
   };
 
+  const handleCloseModal = () => {
+    setShowHelp(false);
+  };
+
   return (
     <>
       {/* Help trigger button */}
       <button
+        ref={firstFocusableRef}
         onClick={() => setShowHelp(true)}
         className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md transition-all"
         style={{ 
@@ -41,6 +93,8 @@ export function KeyboardShortcutsHelp() {
         onMouseLeave={(e) => {
           e.currentTarget.style.backgroundColor = 'transparent';
         }}
+        aria-label="Show keyboard shortcuts help"
+        aria-haspopup="dialog"
         title="Keyboard shortcuts (⌘ + /)"
       >
         <Keyboard className="w-4 h-4" />
@@ -50,15 +104,24 @@ export function KeyboardShortcutsHelp() {
       {/* Modal overlay */}
       {showHelp && (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center"
-          style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
-          onClick={() => setShowHelp(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center transition-all duration-200"
+          style={{ 
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            animation: 'fadeIn 0.2s ease-out',
+          }}
+          onClick={handleCloseModal}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="shortcuts-title"
         >
           <div 
-            className="max-w-md w-full mx-4 rounded-lg shadow-xl"
+            ref={modalRef}
+            className="max-w-md w-full mx-4 rounded-lg shadow-xl transition-all duration-200"
             style={{ 
               backgroundColor: 'rgb(var(--color-card))',
-              border: '1px solid rgb(var(--color-border))'
+              border: '1px solid rgb(var(--color-border))',
+              animation: 'slideIn 0.2s ease-out',
+              transform: 'scale(1)',
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -68,13 +131,15 @@ export function KeyboardShortcutsHelp() {
               style={{ borderColor: 'rgb(var(--color-border))' }}
             >
               <h2 
+                id="shortcuts-title"
                 className="text-lg font-semibold"
                 style={{ color: 'rgb(var(--color-foreground))' }}
               >
                 Keyboard Shortcuts
               </h2>
               <button
-                onClick={() => setShowHelp(false)}
+                ref={lastFocusableRef}
+                onClick={handleCloseModal}
                 className="p-1 rounded-md transition-colors"
                 style={{ color: 'rgb(var(--color-muted-foreground))' }}
                 onMouseEnter={(e) => {
@@ -85,6 +150,7 @@ export function KeyboardShortcutsHelp() {
                   e.currentTarget.style.backgroundColor = 'transparent';
                   e.currentTarget.style.color = 'rgb(var(--color-muted-foreground))';
                 }}
+                aria-label="Close keyboard shortcuts help"
               >
                 <X className="w-4 h-4" />
               </button>

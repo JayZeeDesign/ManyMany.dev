@@ -1,7 +1,9 @@
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback, useState, useMemo } from 'react';
 import { useProjectStore } from '@/stores/projectStore';
+import { useShortcutsStore, ShortcutConfig } from '@/stores/shortcutsStore';
 
 export interface KeyboardShortcut {
+  id: string;
   key: string;
   ctrlKey?: boolean;
   metaKey?: boolean;
@@ -10,6 +12,9 @@ export interface KeyboardShortcut {
   description: string;
   action: () => void;
 }
+
+// Utility to detect platform
+const isMac = typeof navigator !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0;
 
 export const useKeyboardShortcuts = () => {
   const {
@@ -22,6 +27,7 @@ export const useKeyboardShortcuts = () => {
     getSelectedWorktree,
   } = useProjectStore();
   
+  const { shortcuts: shortcutConfigs, enabled } = useShortcutsStore();
   const [showHelp, setShowHelp] = useState(false);
 
   // Helper to get all worktrees from the current project
@@ -39,159 +45,205 @@ export const useKeyboardShortcuts = () => {
 
   // Navigate to next worktree
   const navigateToNextWorktree = useCallback(() => {
-    const worktrees = getCurrentProjectWorktrees();
-    if (worktrees.length === 0) return;
+    try {
+      const worktrees = getCurrentProjectWorktrees();
+      if (worktrees.length === 0) return;
 
-    const currentIndex = getCurrentWorktreeIndex();
-    const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % worktrees.length;
-    
-    const project = getSelectedProject();
-    if (project) {
-      selectProject(project.id);
-      selectWorktree(worktrees[nextIndex].id);
+      const currentIndex = getCurrentWorktreeIndex();
+      const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % worktrees.length;
+      
+      const project = getSelectedProject();
+      if (project && worktrees[nextIndex]) {
+        selectProject(project.id);
+        selectWorktree(worktrees[nextIndex].id);
+      }
+    } catch (error) {
+      console.error('Failed to navigate to next worktree:', error);
     }
   }, [getCurrentProjectWorktrees, getCurrentWorktreeIndex, getSelectedProject, selectProject, selectWorktree]);
 
   // Navigate to previous worktree
   const navigateToPreviousWorktree = useCallback(() => {
-    const worktrees = getCurrentProjectWorktrees();
-    if (worktrees.length === 0) return;
+    try {
+      const worktrees = getCurrentProjectWorktrees();
+      if (worktrees.length === 0) return;
 
-    const currentIndex = getCurrentWorktreeIndex();
-    const prevIndex = currentIndex === -1 ? worktrees.length - 1 : (currentIndex - 1 + worktrees.length) % worktrees.length;
-    
-    const project = getSelectedProject();
-    if (project) {
-      selectProject(project.id);
-      selectWorktree(worktrees[prevIndex].id);
+      const currentIndex = getCurrentWorktreeIndex();
+      const prevIndex = currentIndex === -1 ? worktrees.length - 1 : (currentIndex - 1 + worktrees.length) % worktrees.length;
+      
+      const project = getSelectedProject();
+      if (project && worktrees[prevIndex]) {
+        selectProject(project.id);
+        selectWorktree(worktrees[prevIndex].id);
+      }
+    } catch (error) {
+      console.error('Failed to navigate to previous worktree:', error);
     }
   }, [getCurrentProjectWorktrees, getCurrentWorktreeIndex, getSelectedProject, selectProject, selectWorktree]);
 
   // Navigate to next project
   const navigateToNextProject = useCallback(() => {
-    if (projects.length === 0) return;
+    try {
+      if (projects.length === 0) return;
 
-    const currentIndex = selectedProjectId ? projects.findIndex(p => p.id === selectedProjectId) : -1;
-    const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % projects.length;
-    
-    const nextProject = projects[nextIndex];
-    selectProject(nextProject.id);
-    
-    // Select the first worktree if available
-    if (nextProject.worktrees && nextProject.worktrees.length > 0) {
-      selectWorktree(nextProject.worktrees[0].id);
-    } else {
-      selectWorktree(null);
+      const currentIndex = selectedProjectId ? projects.findIndex(p => p.id === selectedProjectId) : -1;
+      const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % projects.length;
+      
+      const nextProject = projects[nextIndex];
+      if (!nextProject) return;
+      
+      selectProject(nextProject.id);
+      
+      // Select the first worktree if available
+      if (nextProject.worktrees && nextProject.worktrees.length > 0) {
+        selectWorktree(nextProject.worktrees[0].id);
+      } else {
+        selectWorktree(null);
+      }
+    } catch (error) {
+      console.error('Failed to navigate to next project:', error);
     }
   }, [projects, selectedProjectId, selectProject, selectWorktree]);
 
   // Navigate to previous project
   const navigateToPreviousProject = useCallback(() => {
-    if (projects.length === 0) return;
+    try {
+      if (projects.length === 0) return;
 
-    const currentIndex = selectedProjectId ? projects.findIndex(p => p.id === selectedProjectId) : -1;
-    const prevIndex = currentIndex === -1 ? projects.length - 1 : (currentIndex - 1 + projects.length) % projects.length;
-    
-    const prevProject = projects[prevIndex];
-    selectProject(prevProject.id);
-    
-    // Select the first worktree if available
-    if (prevProject.worktrees && prevProject.worktrees.length > 0) {
-      selectWorktree(prevProject.worktrees[0].id);
-    } else {
-      selectWorktree(null);
+      const currentIndex = selectedProjectId ? projects.findIndex(p => p.id === selectedProjectId) : -1;
+      const prevIndex = currentIndex === -1 ? projects.length - 1 : (currentIndex - 1 + projects.length) % projects.length;
+      
+      const prevProject = projects[prevIndex];
+      if (!prevProject) return;
+      
+      selectProject(prevProject.id);
+      
+      // Select the first worktree if available
+      if (prevProject.worktrees && prevProject.worktrees.length > 0) {
+        selectWorktree(prevProject.worktrees[0].id);
+      } else {
+        selectWorktree(null);
+      }
+    } catch (error) {
+      console.error('Failed to navigate to previous project:', error);
     }
   }, [projects, selectedProjectId, selectProject, selectWorktree]);
 
   // Navigate to worktree by number (1-9)
   const navigateToWorktreeByNumber = useCallback((number: number) => {
-    const worktrees = getCurrentProjectWorktrees();
-    if (number >= 1 && number <= worktrees.length) {
-      const project = getSelectedProject();
-      if (project) {
-        selectProject(project.id);
-        selectWorktree(worktrees[number - 1].id);
+    try {
+      const worktrees = getCurrentProjectWorktrees();
+      if (number >= 1 && number <= worktrees.length) {
+        const project = getSelectedProject();
+        const targetWorktree = worktrees[number - 1];
+        if (project && targetWorktree) {
+          selectProject(project.id);
+          selectWorktree(targetWorktree.id);
+        }
       }
+    } catch (error) {
+      console.error(`Failed to navigate to worktree ${number}:`, error);
     }
   }, [getCurrentProjectWorktrees, getSelectedProject, selectProject, selectWorktree]);
 
-  // Define keyboard shortcuts
-  const shortcuts: KeyboardShortcut[] = [
-    {
-      key: 'ArrowRight',
-      metaKey: true,
-      description: 'Next worktree',
-      action: navigateToNextWorktree,
-    },
-    {
-      key: 'ArrowLeft',
-      metaKey: true,
-      description: 'Previous worktree',
-      action: navigateToPreviousWorktree,
-    },
-    {
-      key: 'ArrowDown',
-      metaKey: true,
-      description: 'Next project',
-      action: navigateToNextProject,
-    },
-    {
-      key: 'ArrowUp',
-      metaKey: true,
-      description: 'Previous project',
-      action: navigateToPreviousProject,
-    },
-    {
-      key: '/',
-      metaKey: true,
-      description: 'Show keyboard shortcuts',
-      action: () => setShowHelp(true),
-    },
-    // Worktree numbers 1-9
-    ...Array.from({ length: 9 }, (_, i) => ({
-      key: (i + 1).toString(),
-      metaKey: true,
-      description: `Switch to worktree ${i + 1}`,
-      action: () => navigateToWorktreeByNumber(i + 1),
-    })),
-  ];
+  // Action mapping for configurable shortcuts
+  const actionMap = useMemo(() => ({
+    navigateToNextWorktree,
+    navigateToPreviousWorktree,
+    navigateToNextProject,
+    navigateToPreviousProject,
+    showHelp: () => setShowHelp(true),
+    navigateToWorktreeByNumber: (number: number) => () => navigateToWorktreeByNumber(number),
+  }), [
+    navigateToNextWorktree,
+    navigateToPreviousWorktree,
+    navigateToNextProject,
+    navigateToPreviousProject,
+    navigateToWorktreeByNumber,
+  ]);
+
+  // Memoized shortcuts array from configuration
+  const shortcuts: KeyboardShortcut[] = useMemo(() => {
+    if (!enabled) return [];
+    
+    return shortcutConfigs.map((config) => {
+      let action: () => void;
+      
+      // Handle parameterized actions (like worktree numbers)
+      if (config.action.includes(':')) {
+        const [actionName, param] = config.action.split(':');
+        if (actionName === 'navigateToWorktreeByNumber') {
+          action = actionMap.navigateToWorktreeByNumber(parseInt(param, 10));
+        } else {
+          action = () => console.warn(`Unknown parameterized action: ${config.action}`);
+        }
+      } else {
+        action = actionMap[config.action as keyof typeof actionMap] || 
+                (() => console.warn(`Unknown action: ${config.action}`));
+      }
+
+      return {
+        id: config.id,
+        key: config.key,
+        metaKey: config.metaKey,
+        ctrlKey: config.ctrlKey,
+        shiftKey: config.shiftKey,
+        altKey: config.altKey,
+        description: config.description,
+        action,
+      };
+    });
+  }, [shortcutConfigs, enabled, actionMap]);
 
   useEffect(() => {
+    if (!enabled) return;
+
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Don't trigger shortcuts if user is typing in an input/textarea
-      const activeElement = document.activeElement;
-      if (
-        activeElement?.tagName === 'INPUT' ||
-        activeElement?.tagName === 'TEXTAREA' ||
-        activeElement?.getAttribute('contenteditable') === 'true'
-      ) {
-        return;
-      }
+      try {
+        // Don't trigger shortcuts if user is typing in any interactive element
+        const activeElement = document.activeElement;
+        const isInteractiveElement = 
+          activeElement?.tagName === 'INPUT' ||
+          activeElement?.tagName === 'TEXTAREA' ||
+          activeElement?.tagName === 'SELECT' ||
+          activeElement?.getAttribute('contenteditable') === 'true' ||
+          activeElement?.getAttribute('role') === 'textbox' ||
+          // Check for xterm.js terminals
+          activeElement?.classList.contains('xterm-helper-textarea');
 
-      // Handle Escape to close help modal
-      if (event.key === 'Escape' && showHelp) {
-        setShowHelp(false);
-        return;
-      }
-
-      for (const shortcut of shortcuts) {
-        const keyMatches = event.key === shortcut.key;
-        const ctrlMatches = !!shortcut.ctrlKey === event.ctrlKey;
-        const metaMatches = !!shortcut.metaKey === event.metaKey;
-        const shiftMatches = !!shortcut.shiftKey === event.shiftKey;
-        const altMatches = !!shortcut.altKey === event.altKey;
-
-        if (keyMatches && ctrlMatches && metaMatches && shiftMatches && altMatches) {
-          event.preventDefault();
-          shortcut.action();
-          break;
+        if (isInteractiveElement) {
+          return;
         }
+
+        // Handle Escape to close help modal (always works)
+        if (event.key === 'Escape' && showHelp) {
+          setShowHelp(false);
+          event.preventDefault();
+          return;
+        }
+
+        // Process configured shortcuts
+        for (const shortcut of shortcuts) {
+          const keyMatches = event.key === shortcut.key;
+          const ctrlMatches = !!shortcut.ctrlKey === event.ctrlKey;
+          const metaMatches = !!shortcut.metaKey === event.metaKey;
+          const shiftMatches = !!shortcut.shiftKey === event.shiftKey;
+          const altMatches = !!shortcut.altKey === event.altKey;
+
+          if (keyMatches && ctrlMatches && metaMatches && shiftMatches && altMatches) {
+            event.preventDefault();
+            shortcut.action();
+            break;
+          }
+        }
+      } catch (error) {
+        console.error('Error handling keyboard shortcut:', error);
       }
     };
 
-    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('keydown', handleKeyDown, { passive: false });
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [shortcuts, showHelp]);
+  }, [shortcuts, showHelp, enabled]);
 
   return { shortcuts, showHelp, setShowHelp };
 };
