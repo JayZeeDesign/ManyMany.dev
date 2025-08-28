@@ -34,7 +34,9 @@
             "dialog:default",
             "updater:default",
             "updater:allow-check",
-            "updater:allow-download-and-install"
+            "updater:allow-download-and-install",
+            "opener:default",
+            "opener:allow-open-url"
           ]
         }
       ]
