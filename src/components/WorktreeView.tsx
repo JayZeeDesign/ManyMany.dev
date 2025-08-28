@@ -27,8 +27,11 @@ export function WorktreeView() {
   const { getProjectTerminalSettings } = useProjectStore();
   const defaultTerminals = project ? getProjectTerminalSettings(project.id) : [];
 
-  // Store refs to terminal components for focusing
-  const terminalRefs = useRef<Record<string, { focus: () => void }>>({});
+  // Get terminal focus function from store
+  const { focusActiveTerminal } = useTerminalStore();
+  
+  // Track worktree changes for auto-focus
+  const prevWorktreeIdRef = useRef<string | null>(null);
 
   // Get current worktree's terminals from store
   const terminals = worktree ? getTerminalsForWorktree(worktree.id) : [];
@@ -145,7 +148,31 @@ export function WorktreeView() {
     }
   }, [editingTerminalId]);
 
-  // Clean state management without debug logging
+  // Auto-focus terminal when worktree changes (from keyboard navigation)
+  useEffect(() => {
+    const currentWorktreeId = worktree?.id || null;
+    
+    // Only auto-focus if worktree actually changed (not initial load)
+    if (prevWorktreeIdRef.current !== null && 
+        prevWorktreeIdRef.current !== currentWorktreeId && 
+        currentWorktreeId) {
+      
+      console.log(`[WorktreeView] Worktree changed from ${prevWorktreeIdRef.current} to ${currentWorktreeId}, auto-focusing terminal`);
+      
+      // Focus the active terminal for this worktree after a delay
+      setTimeout(async () => {
+        try {
+          const success = await focusActiveTerminal(currentWorktreeId);
+          console.log(`[WorktreeView] Auto-focus terminal result: ${success}`);
+        } catch (error) {
+          console.error('Failed to auto-focus terminal on worktree change:', error);
+        }
+      }, 200);
+    }
+    
+    // Update the previous worktree ID
+    prevWorktreeIdRef.current = currentWorktreeId;
+  }, [worktree?.id, focusActiveTerminal]);
 
   const handleCreateTerminalInternal = async () => {
     if (isCreatingTerminal || !worktree) return;
@@ -183,12 +210,14 @@ export function WorktreeView() {
       // Update terminal with backend ID
       setBackendTerminalId(newTerminal.id, backendTerminalId);
       
-      // Focus the new terminal after a delay to ensure it's rendered
-      setTimeout(() => {
-        if (terminalRefs.current[newTerminal.id]) {
-          terminalRefs.current[newTerminal.id].focus();
+      // Focus the new terminal after it's created
+      setTimeout(async () => {
+        try {
+          await focusActiveTerminal(worktree.id);
+        } catch (error) {
+          console.error('Failed to focus new terminal:', error);
         }
-      }, 200);
+      }, 300);
       
     } catch (error) {
       console.error('Failed to create terminal:', error);
@@ -212,27 +241,26 @@ export function WorktreeView() {
       }
     }
     
-    // Close terminal in store (this handles all the state updates)
+    // Close terminal in store (this handles all the state updates including ref cleanup)
     closeTerminal(terminalId);
-    
-    // Clean up terminal ref
-    delete terminalRefs.current[terminalId];
   };
 
   const handleRenameTerminal = (terminalId: string, newName: string) => {
     renameTerminal(terminalId, newName);
   };
 
-  const setActiveTerminalId = (terminalId: string | null) => {
+  const setActiveTerminalId = async (terminalId: string | null) => {
     if (!worktree) return;
     
     setActiveTerminal(worktree.id, terminalId);
     
-    // Focus the terminal after a short delay to ensure it's rendered
-    if (terminalId && terminalRefs.current[terminalId]) {
-      setTimeout(() => {
-        terminalRefs.current[terminalId]?.focus();
-      }, 100);
+    // Focus the terminal using store method
+    if (terminalId) {
+      try {
+        await focusActiveTerminal(worktree.id);
+      } catch (error) {
+        console.error('Failed to focus terminal after setting active:', error);
+      }
     }
   };
 
@@ -447,13 +475,8 @@ export function WorktreeView() {
                     }}
                   >
                     <Terminal
-                      // No key prop - let React use position to maintain component identity
-                      ref={(terminalRef) => {
-                        if (terminalRef) {
-                          terminalRefs.current[terminal.id] = terminalRef;
-                        }
-                      }}
                       terminalId={terminal.backendTerminalId}
+                      frontendTerminalId={terminal.id}
                       worktreeId={terminal.worktreeId}
                       workingDirectory={terminal.workingDirectory}
                       name={terminal.name}

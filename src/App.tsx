@@ -6,15 +6,22 @@ import { WorktreeView } from './components/WorktreeView';
 import { FileChangesPanel } from './components/FileChangesPanel';
 import { UpdateBanner } from './components/UpdateBanner';
 import { UpdateDialog } from './components/UpdateDialog';
+import { KeyboardShortcutsHelp } from './components/KeyboardShortcutsHelp';
+import { AppSettings } from './components/AppSettings';
 import { useProjectStore } from './stores/projectStore';
 import { useUpdateStore } from './stores/updateStore';
-import { FolderGit2, GitBranch, ChevronRight, ChevronDown, Folder, Code, FileText, RefreshCw } from 'lucide-react';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { FolderGit2, GitBranch, ChevronRight, ChevronDown, Folder, Code, FileText, RefreshCw, Settings } from 'lucide-react';
 
 function App() {
   const { selectedProjectId, selectedWorktreeId, getSelectedProject, getSelectedWorktree, selectWorktree, showFileChangesPanel, toggleFileChangesPanel } = useProjectStore();
   const { checkForUpdates, autoCheckEnabled, checking } = useUpdateStore();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [showAppSettings, setShowAppSettings] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  
+  // Enable keyboard shortcuts
+  useKeyboardShortcuts();
   
   const selectedProject = getSelectedProject();
   const selectedWorktree = getSelectedWorktree();
@@ -126,6 +133,30 @@ function App() {
           
           {/* Action Buttons */}
           <div className="flex items-center gap-2">
+            {/* App Settings - Always visible */}
+            <button
+              onClick={() => setShowAppSettings(true)}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md transition-all"
+              style={{ 
+                backgroundColor: 'transparent',
+                color: 'rgb(var(--color-muted-foreground))',
+                border: '1px solid rgb(var(--color-border))'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgb(var(--color-muted))';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
+              }}
+              title="App settings"
+            >
+              <Settings className="w-4 h-4" />
+              <span className="hidden sm:inline">Settings</span>
+            </button>
+            
+            {/* Keyboard Shortcuts Help - Always visible */}
+            <KeyboardShortcutsHelp />
+            
             {/* Update Check Button - Always visible */}
             <button
               onClick={handleCheckForUpdates}
@@ -347,6 +378,9 @@ function App() {
       
       {/* Update Dialog */}
       <UpdateDialog />
+      
+      {/* App Settings */}
+      <AppSettings isOpen={showAppSettings} onClose={() => setShowAppSettings(false)} />
     </div>
   );
 }

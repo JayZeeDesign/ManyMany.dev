@@ -18,12 +18,20 @@ interface TerminalStore {
   // Active terminal per worktree
   activeTerminalByWorktree: Record<string, string | null>;
   
+  // Focus management
+  terminalRefs: Record<string, { focus: () => void } | null>;
+  
   // Actions
   createTerminal: (terminal: Omit<TerminalSession, 'id' | 'lastActiveTime' | 'isActive'>) => TerminalSession;
   closeTerminal: (terminalId: string) => void;
   renameTerminal: (terminalId: string, newName: string) => void;
   setActiveTerminal: (worktreeId: string, terminalId: string | null) => void;
   setBackendTerminalId: (terminalId: string, backendId: string) => void;
+  
+  // Focus management
+  registerTerminalRef: (terminalId: string, ref: { focus: () => void } | null) => void;
+  focusActiveTerminal: (worktreeId: string) => Promise<boolean>;
+  requestTerminalFocus: (terminalId: string) => Promise<boolean>;
   
   // Getters
   getTerminalsForWorktree: (worktreeId: string) => TerminalSession[];
@@ -38,6 +46,7 @@ interface TerminalStore {
 export const useTerminalStore = create<TerminalStore>()((set, get) => ({
   terminals: [],
   activeTerminalByWorktree: {},
+  terminalRefs: {},
 
   createTerminal: (terminalData) => {
     const terminal: TerminalSession = {
@@ -147,6 +156,65 @@ export const useTerminalStore = create<TerminalStore>()((set, get) => ({
     set({
       terminals: [],
       activeTerminalByWorktree: {},
+      terminalRefs: {},
     });
+  },
+
+  // Focus management methods
+  registerTerminalRef: (terminalId, ref) => {
+    set((state) => ({
+      terminalRefs: {
+        ...state.terminalRefs,
+        [terminalId]: ref,
+      },
+    }));
+  },
+
+  focusActiveTerminal: async (worktreeId) => {
+    try {
+      const state = get();
+      const activeTerminalId = state.activeTerminalByWorktree[worktreeId];
+      
+      if (!activeTerminalId) {
+        console.log(`[TerminalStore] No active terminal for worktree: ${worktreeId}`);
+        return false;
+      }
+
+      const terminalRef = state.terminalRefs[activeTerminalId];
+      if (!terminalRef) {
+        console.log(`[TerminalStore] No terminal ref found for: ${activeTerminalId}`);
+        return false;
+      }
+
+      // Focus with a delay to ensure terminal is rendered
+      await new Promise(resolve => setTimeout(resolve, 150));
+      terminalRef.focus();
+      console.log(`[TerminalStore] Focused terminal: ${activeTerminalId}`);
+      return true;
+    } catch (error) {
+      console.error('Failed to focus active terminal:', error);
+      return false;
+    }
+  },
+
+  requestTerminalFocus: async (terminalId) => {
+    try {
+      const state = get();
+      const terminalRef = state.terminalRefs[terminalId];
+      
+      if (!terminalRef) {
+        console.log(`[TerminalStore] No terminal ref found for: ${terminalId}`);
+        return false;
+      }
+
+      // Focus with a delay to ensure terminal is rendered
+      await new Promise(resolve => setTimeout(resolve, 150));
+      terminalRef.focus();
+      console.log(`[TerminalStore] Focused terminal: ${terminalId}`);
+      return true;
+    } catch (error) {
+      console.error('Failed to focus terminal:', error);
+      return false;
+    }
   },
 }));
