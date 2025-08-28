@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { X, FileText, ExternalLink } from 'lucide-react';
+import { X, FileText, ExternalLink, List, Network } from 'lucide-react';
 import { useProjectStore } from '@/stores/projectStore';
+import { TreeView } from '@/components/TreeView';
+import { buildFileTree } from '@/utils/fileTree';
 
 interface GitStatus {
   branch: string;
@@ -22,6 +24,7 @@ export function FileChangesPanel() {
   const [gitStatus, setGitStatus] = useState<GitStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'flat' | 'tree'>('flat');
   
   const selectedWorktree = getSelectedWorktree();
 
@@ -207,9 +210,27 @@ export function FileChangesPanel() {
           className="h-9 flex items-center justify-between px-3 border-b flex-shrink-0"
           style={{ borderColor: 'rgb(var(--color-border))' }}
         >
-          <h3 className="text-sm font-medium" style={{ color: 'rgb(var(--color-foreground))' }}>
-            FILE CHANGES
-          </h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-medium" style={{ color: 'rgb(var(--color-foreground))' }}>
+              FILE CHANGES
+            </h3>
+            <button
+              onClick={() => setViewMode(viewMode === 'flat' ? 'tree' : 'flat')}
+              className="p-1 rounded transition-colors"
+              style={{ color: 'rgb(var(--color-muted-foreground))' }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgb(var(--color-muted))';
+                e.currentTarget.style.color = 'rgb(var(--color-foreground))';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
+                e.currentTarget.style.color = 'rgb(var(--color-muted-foreground))';
+              }}
+              title={viewMode === 'flat' ? 'Switch to tree view' : 'Switch to flat view'}
+            >
+              {viewMode === 'flat' ? <Network className="w-4 h-4" /> : <List className="w-4 h-4" />}
+            </button>
+          </div>
           <button
             onClick={() => setShowFileChangesPanel(false)}
             className="p-1 rounded transition-colors"
@@ -268,8 +289,17 @@ export function FileChangesPanel() {
                 )}
               </div>
 
-              {/* All files combined */}
-              <FileList files={[...gitStatus.staged, ...gitStatus.unstaged, ...gitStatus.untracked]} />
+              {/* Files display - conditional based on view mode */}
+              {viewMode === 'flat' ? (
+                <FileList files={[...gitStatus.staged, ...gitStatus.unstaged, ...gitStatus.untracked]} />
+              ) : (
+                <TreeView 
+                  nodes={buildFileTree([...gitStatus.staged, ...gitStatus.unstaged, ...gitStatus.untracked])}
+                  onFileClick={handleOpenFile}
+                  getStatusColor={getStatusColor}
+                  getStatusLabel={getStatusLabel}
+                />
+              )}
 
               {/* Empty state */}
               {gitStatus.staged.length === 0 && gitStatus.unstaged.length === 0 && gitStatus.untracked.length === 0 && (
