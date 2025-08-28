@@ -4,6 +4,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
+import { openUrl } from '@tauri-apps/plugin-opener';
 import '@xterm/xterm/css/xterm.css';
 
 interface TerminalProps {
@@ -88,7 +89,17 @@ export const Terminal = React.forwardRef<{ focus: () => void }, TerminalProps>((
 
     // Add addons
     const fitAddon = new FitAddon();
-    const webLinksAddon = new WebLinksAddon();
+    
+    // Custom link handler for Tauri desktop app
+    const handleLinkClick = async (_event: MouseEvent, uri: string) => {
+      try {
+        await openUrl(uri);
+      } catch (error) {
+        console.error('Failed to open link:', uri, error);
+      }
+    };
+    
+    const webLinksAddon = new WebLinksAddon(handleLinkClick);
     
     xterm.loadAddon(fitAddon);
     xterm.loadAddon(webLinksAddon);
