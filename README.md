@@ -63,3 +63,4 @@ src-tauri/
 │   └── terminal/      # Terminal management system
 └── Cargo.toml        # Rust dependencies
 ```
+
